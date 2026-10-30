@@ -16,18 +16,48 @@
 | 联系我 | GitHub、Email、知乎 |
 | 作品仓库 | 3 个作品卡片，各带「CLEAR」进度条：像素官网生成器、地牢漫步、8-BIT 品牌手册 |
 | 成就墙 | 6 枚成就徽章：FIRST COMMIT、PIXEL MASTER、SHIP IT、50K DL、NIGHT OWL、COIN HOARDER |
-| 日记本 | 500 字上限、4 种心情标签、按日期区间筛选、导出独立 HTML 存档、JSON 导入导出、与仓库 `diary.json` 自动合并、`SYNC ▲` 一键直传仓库 |
+| 日记本 | 500 字上限、4 种心情标签、按日期区间筛选、每条可展开评论区、导出独立 HTML 存档、JSON 导入导出、与仓库 `diary.json` 自动合并、`SYNC ▲` 一键直传仓库 |
 
 ## 技术说明
 
-- **单文件实现**：全部结构与逻辑在 `index.html`（2966 行），无构建步骤、无框架，样式与脚本全部内联
+- **单文件实现**：全部结构与逻辑在 `index.html`（3174 行），无构建步骤、无框架，样式与脚本全部内联
 - **数据驱动**：内容由内联 JS 的数据数组渲染——`LOGS`（经历）、`SKILLS`（技能）、`SOCIALS`（联系方式）、`PROJECTS`（作品）、`ACHV`（成就）。改文案只需改对应数组，不必动 DOM
 - **像素图形**：图标是代码里的点阵字符串（`ICONS`），由 `pixelGrid()` 绘制
 - **头像**：`assets/avatar.png`（源图 `assets/头像.png` 居中裁方后缩到 160×160），CSS 用 `image-rendering: pixelated` 最近邻放大保留颗粒感；图片缺失时自动退回点阵 `Z` 图标
 - **字体自托管**：Fusion Pixel（中文正文，78 个 unicode-range 分片）、Press Start 2P（标题）、VT323，均为 SIL OFL-1.1，许可与原文见 LICENSES.md
-- **外部请求**：仅 MUSIC 播放调用网易云音乐的第三方外链；字体与样式不依赖任何 CDN
+- **外部请求**：MUSIC 播放调用网易云音乐外链、评论区加载 giscus（`giscus.app`）；字体与样式不依赖任何 CDN
 - **日记数据**：正文存浏览器 `localStorage`，仓库根 `diary.json` 是跨设备的共享快照；页面打开时自动拉取合并，导出 HTML 存档（内嵌 `diary-data` JSON，可再次导入）时文件名形如 `diary-archive-20261030.html`
+- **评论**：giscus（GitHub Discussions），每条日记的讨论串由 `data-term`（`日记 <日期时间> · <日记 id>`）唯一确定；组件懒加载，只有点开某条日记的 `COMMENTS` 才注入 iframe
 - **部署**：GitHub Pages，`main` 分支根目录直接发布，无需 Actions
+
+## 日记评论（giscus）
+
+评论存在仓库的 **Discussions** 里，不需要服务器，也不需要数据库。任何访问者用 GitHub 账号登录即可对某条日记留言，作者在仓库 Discussions 页面或本站都能看到。
+
+一条日记对应一个讨论串，标题即可读的 term：`日记 2026.10.30 周五 17:01 · <日记 id>`。`id` 来自 `diary.json`、稳定不变，所以不同日记的评论互不混淆，新增/删除日记也不影响已有讨论。第一条评论发出时，giscus 会自动在 `Announcements` 分类下建好对应讨论。
+
+**当前状态：已接通**（`repo` / `repoId` / `categoryId` 均已填好，仓库 Discussions 已开启，giscus App 已安装）。
+
+```js
+var GISCUS = {
+  repo: 'jibai33/jibai33.github.io',
+  repoId: 'R_kgDOVccitQ',
+  category: 'Announcements',          // 与 categoryId 对应的分类名
+  categoryId: 'DIC_kwDOVccitc4DJ_Im'  // Announcements 的 node id
+};
+```
+
+**换分类或换仓库时**，`categoryId` 不必去 giscus.app 页面点：
+
+```bash
+curl -s "https://giscus.app/api/discussions/categories?repo=<owner>/<repo>"
+# {"repositoryId":"R_kgDO...","categories":[{"id":"DIC_kwDO...","name":"Announcements"}, ...]}
+```
+
+返回值里 `repositoryId` 填 `GISCUS.repoId`，所选分类的 `id` 填 `GISCUS.categoryId`，`name` 填 `GISCUS.category`，三者必须来自同一仓库。
+
+`categoryId` 为空时页面不加载评论组件，展开 `COMMENTS` 只会显示开启步骤提示，不会白屏。
+
 
 ## 日记同步
 
@@ -57,6 +87,10 @@ python3 -m http.server 8000
 
 ## 已知限制
 
+- 评论依赖 giscus 与仓库 Discussions：未开启 Discussions / 未安装 giscus App 时评论区不加载；评论者需要 GitHub 账号（giscus 不支持匿名昵称）
+- **评论区必须在 http(s) 页面下打开**：giscus 的 iframe 响应带 `Content-Security-Policy: frame-ancestors`，服务端按客户端传来的 `origin` 回显放行；`file://` 的 origin 是 `null`，永远拿不到放行，所以双击本地 HTML 会看到「评论区不可用」的提示。本地调试请用 `python3 -m http.server` 起服务访问 `http://localhost:8000`
+- 部分预览面板 / 广告拦截会拦掉 `giscus.app/client.js` 这类外链脚本，页面会分别提示「脚本被拦」与「已加载但未渲染」，便于区分是网络问题还是配置问题
+- 评论数据的增删改在 GitHub Discussions 里进行，页面只做展示，不做本地缓存；离线打开时 iframe 空白
 - MUSIC 播放依赖网易云音乐的外链接口，歌曲可能因版权或接口调整而失效
 - 音效受浏览器自动播放策略限制，需首次交互后才解锁
 - 日记正文只存在当前浏览器的 `localStorage`（清除站点数据即丢失），仓库 `diary.json` 是手动 PUBLISH 或 SYNC 提交的共享快照；重要内容请用 EXPORT 另存一份
