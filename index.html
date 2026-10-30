@@ -922,7 +922,7 @@
     word-break: break-word;
   }
 
-  /* ---------- 日记评论（giscus · 仓库 Discussions） ---------- */
+  /* ---------- 日记评论（云数据库 · iframe 小组件） ---------- */
   .diary-actions {
     display: flex;
     align-items: center;
@@ -965,6 +965,16 @@
   .cmt-head .tid { color: #5d6480; margin-left: 2px; }
   .cmt-host { margin-top: 8px; min-height: 40px; }
   .cmt-host iframe { width: 100%; border: none; display: block; }
+  .cmt-frame {
+    width: 100%;
+    min-height: 120px;
+    border: none;
+    display: block;
+    background: transparent;
+    opacity: 0;
+    transition: opacity 0.25s steps(4, end), height 0.18s ease-out;
+  }
+  .cmt-frame.ready { opacity: 1; }
   .cmt-tip {
     margin-top: 8px;
     font-family: var(--body);
@@ -975,40 +985,6 @@
   .cmt-tip a { color: var(--blue); }
   .cmt-warn { color: #e5b33b; }
   .cmt-warn a { color: var(--blue); text-decoration: underline; }
-  .cmt-setup {
-    margin-top: 8px;
-    font-size: 13px;
-    line-height: 1.85;
-    color: #c3c8dc;
-  }
-  .cmt-setup summary {
-    cursor: pointer;
-    width: fit-content;
-    padding: 2px 6px;
-    border: 2px dashed rgba(255, 255, 255, 0.24);
-    font-size: 12px;
-    color: #9aa2bd;
-  }
-  .cmt-setup summary:hover { color: var(--yellow); border-color: var(--yellow); }
-  .cmt-setup[open] summary { margin-bottom: 6px; }
-  .cmt-setup b { color: var(--yellow); }
-  .cmt-setup a {
-    color: var(--blue);
-    text-decoration: underline;
-    text-underline-offset: 3px;
-  }
-  .cmt-setup a:hover { color: var(--yellow); }
-  .cmt-setup ol { margin: 6px 0 0 20px; padding: 0; }
-  .cmt-setup li { margin-bottom: 4px; }
-  .cmt-setup code {
-    padding: 1px 4px;
-    background: rgba(0, 0, 0, 0.5);
-    border: 1px solid rgba(255, 255, 255, 0.16);
-    color: var(--yellow);
-    font-family: var(--body);
-    font-size: 12px;
-    word-break: break-all;
-  }
   .diary-empty {
     grid-column: 1 / -1;
     margin-top: 0;
@@ -2329,17 +2305,15 @@
   var DKEY = 'linyi_diary_v1';
   var DTOMB = 'linyi_diary_v1_tomb';
 
-  /* ---------- 日记评论（giscus → 仓库 GitHub Discussions） ----------
-     每条日记 = 一个独立讨论串，讨论标题即可读的 term（日期 + 日记 id），
-     因此不同日记的评论互不混淆，删除/新增日记也不会互相影响。
-     启用两步：① 仓库 Settings → Features 勾选 Discussions
-               ② https://github.com/apps/giscus 安装到该仓库
-     分类 id 取自 https://giscus.app/api/discussions/categories?repo=<repo> */
-  var GISCUS = {
-    repo: 'jibai33/jibai33.github.io',
-    repoId: 'R_kgDOVccitQ',
-    category: 'Announcements',          /* 讨论分类名，需与 categoryId 对应 */
-    categoryId: 'DIC_kwDOVccitc4DJ_Im'  /* Announcements 分类的 node id */
+  /* ---------- 日记评论（云数据库 + 同源小部件） ----------
+     评论存在 WorkBuddy 云数据库的 diary_comments 表里，访客不用登录、填昵称即可发言。
+     云服务接口只放行它自己的域名（Origin 精确匹配），所以评论 UI 跑在 CLOUD_CMT.base
+     这个域名的 comments.html 上，用 iframe 嵌进日记卡片；这个页面本身仍在 GitHub Pages。
+     一条日记 = 一个 diary_id（取日记的 id，退回时间戳），互不串台。 */
+  var CLOUD_CMT = {
+    base: 'https://jibai33-home.app.workbuddy.host',  /* 云服务应用域名，comments.html 在这里 */
+    page: 'comments.html',
+    share: 'KWLMX3RRCK'                               /* 站点访问码，重新发布后如有变化需同步更新 */
   };
   var MOODS = [
     { id: 'happy', label: '开心', icon: 'mood_happy', color: C.yellow },
@@ -2463,88 +2437,64 @@
     });
   });
 
-  /* ---------- 评论：面板与 giscus 挂载 ---------- */
-  function cmtReady() { return !!(GISCUS.repoId && GISCUS.categoryId); }
-  /* 讨论标题：日期可读，尾部带日记 id 保证唯一（id 来自 diary.json，稳定不变） */
-  function cmtTerm(item) {
-    return '日记 ' + fmtDate(item.ts) + ' ' + fmtTime(item.ts) + ' · ' + (item.id || item.ts);
+  /* ---------- 评论：面板与云评论挂载 ---------- */
+  function cmtReady() { return !!CLOUD_CMT.base; }
+  /* 日记唯一标识：优先用 diary.json 里的 id（稳定不变），退回时间戳 */
+  function cmtKey(item) {
+    var raw = String(item.id || item.ts).replace(/[^A-Za-z0-9_-]/g, '');
+    return (raw || String(item.ts)).slice(0, 80);
   }
+  function cmtLabel(item) { return fmtDate(item.ts) + ' ' + fmtTime(item.ts); }
 
-  function cmtSetupHTML() {
-    return '<p class="cmt-tip">评论区还没接通 ▸ 需要作者在仓库开启 Discussions 并安装 giscus。</p>' +
-      '<details class="cmt-setup"><summary>开启步骤（作者操作）</summary><ol>' +
-      '<li>仓库 <b>Settings → Features</b> 勾选 <code>Discussions</code></li>' +
-      '<li>给仓库安装 <a href="https://github.com/apps/giscus" target="_blank" rel="noopener">giscus App</a></li>' +
-      '<li>打开 <a href="https://giscus.app/zh-CN" target="_blank" rel="noopener">giscus.app</a> 选本仓库与讨论分类，把生成的 ' +
-      '<code>data-category-id</code> 填进 index.html 顶部 <code>GISCUS.categoryId</code></li>' +
-      '</ol></details>' +
-      '<p class="cmt-tip">接通后任何访问者用 GitHub 账号登录即可评论，内容存在仓库 Discussions，不需要额外服务器。</p>';
-  }
-
-  /* giscus 的 iframe 带 CSP `frame-ancestors`，服务端按客户端传来的 origin 回显放行；
-     file:// 的 origin 是 null，永远拿不到放行 → 本地双击打开时评论区无法嵌入 */
-  function cmtEmbeddable() { return location.protocol === 'http:' || location.protocol === 'https:'; }
-
-  function mountGiscus(host, term) {
-    host.innerHTML = '';
-    var s = document.createElement('script');
-    var attrs = {
-      src: 'https://giscus.app/client.js',
-      'data-repo': GISCUS.repo,
-      'data-repo-id': GISCUS.repoId,
-      'data-category': GISCUS.category,
-      'data-category-id': GISCUS.categoryId,
-      'data-mapping': 'specific',
-      'data-term': term,
-      'data-strict': '0',
-      'data-reactions-enabled': '1',
-      'data-emit-metadata': '0',
-      'data-input-position': 'bottom',
-      'data-theme': 'transparent_dark',
-      'data-lang': 'zh-CN',
-      'data-loading': 'lazy'
-    };
-    Object.keys(attrs).forEach(function (k) { s.setAttribute(k, attrs[k]); });
-    s.async = true;
-    s.crossOrigin = 'anonymous';
-
-    /* 分三种失败原因给不同提示，避免一句笼统的「没加载出来」 */
-    var warned = null;
-    function warn(html) {
-      if (warned || !host.isConnected) return;
-      warned = document.createElement('p');
-      warned.className = 'cmt-tip cmt-warn';
-      warned.innerHTML = html;
-      host.appendChild(warned);
+  /* iframe 高度自适应：comments.html 用 postMessage 上报自身高度 */
+  var cmtFrames = [];
+  window.addEventListener('message', function (e) {
+    var d = e.data || {};
+    if (d.type !== 'pixel-cmt-height' || !d.height) return;
+    for (var i = 0; i < cmtFrames.length; i++) {
+      if (cmtFrames[i].el.contentWindow === e.source) {
+        cmtFrames[i].el.style.height = Math.max(80, Math.min(2000, Math.round(d.height))) + 'px';
+        break;
+      }
     }
-    var discLink = '<a href="https://github.com/' + GISCUS.repo + '/discussions" target="_blank" rel="noopener">去仓库 Discussions 看评论</a>';
-    var loaded = false;
+  });
 
-    s.onerror = function () {
-      warn('拉不到 giscus.app/client.js：当前网络或预览环境拦了外链脚本。' +
-        '换普通浏览器打开线上页面就能加载 · ' + discLink);
-    };
-    s.onload = function () {
-      loaded = true;
-      setTimeout(function () {
-        if (host.querySelector('iframe')) return;
-        warn('giscus 脚本已加载但没渲染出评论框：多半是分类 id 与 Discussions 分类不匹配（当前 <code>' +
-          GISCUS.category + '</code> · <code>' + GISCUS.categoryId + '</code>）· ' + discLink);
-      }, 2500);
-    };
-    /* 网络把请求挂住时 onerror 可能迟迟不触发，用一个总超时兜底，避免评论区一片空白 */
+  function mountComments(host, item) {
+    host.innerHTML = '';
+    var url = CLOUD_CMT.base + '/' + CLOUD_CMT.page +
+      '?diary=' + encodeURIComponent(cmtKey(item)) +
+      (CLOUD_CMT.share ? '&sharecode=' + encodeURIComponent(CLOUD_CMT.share) : '');
+
+    var frame = document.createElement('iframe');
+    frame.className = 'cmt-frame';
+    frame.title = '评论';
+    frame.loading = 'lazy';
+    frame.setAttribute('scrolling', 'no');
+    frame.src = url;
+    frame.style.height = '120px';
+    host.appendChild(frame);
+
+    var rec = { el: frame };
+    cmtFrames.push(rec);
+
+    var fellBack = false;
+    function fallback() {
+      if (fellBack || frame.contentWindow) return;
+      fellBack = true;
+      var tip = document.createElement('p');
+      tip.className = 'cmt-tip cmt-warn';
+      tip.innerHTML = '评论组件没能加载出来（云服务网络不通或尚未发布）。' +
+        '可以直接在新窗口打开：<a href="' + url + '" target="_blank" rel="noopener">评论页</a>';
+      host.appendChild(tip);
+    }
+    frame.addEventListener('load', function () { frame.classList.add('ready'); });
+    frame.addEventListener('error', fallback);
     setTimeout(function () {
-      if (loaded || host.querySelector('iframe')) return;
-      warn('giscus.app 在 10 秒内没有响应，评论框加载不出来。常见原因是当前网络访问 giscus.app 受限（国内部分网络需要代理），' +
-        '可以先' + discLink + '，或访问 <a href="https://giscus.app/zh-CN" target="_blank" rel="noopener">giscus.app</a> 自测连通性。');
-    }, 10000);
+      if (!frame.classList.contains('ready')) fallback();
+    }, 12000);
 
-    var hostObs = new MutationObserver(function () {
-      if (host.querySelector('iframe') && warned) { warned.remove(); warned = null; hostObs.disconnect(); }
-    });
-    hostObs.observe(host, { childList: true, subtree: true });
-
-    host.appendChild(s);
+    /* 展开过就不要重复压入数组 */
+    if (cmtFrames.length > 24) cmtFrames = cmtFrames.slice(-24);
   }
 
   function toggleComments(box, btn, item) {
@@ -2565,10 +2515,10 @@
 
     var head = document.createElement('div');
     head.className = 'cmt-head';
-    head.textContent = 'COMMENTS';
+    head.textContent = 'THREAD';
     var tid = document.createElement('span');
     tid.className = 'tid';
-    tid.textContent = 'THREAD · ' + fmtDate(item.ts);
+    tid.textContent = cmtLabel(item);
     head.appendChild(tid);
 
     var host = document.createElement('div');
@@ -2578,19 +2528,9 @@
     panel.appendChild(host);
 
     if (!cmtReady()) {
-      host.innerHTML = cmtSetupHTML();
-    } else if (!cmtEmbeddable()) {
-      /* file:// 下 giscus 的 CSP 不会放行，直接说清楚，不白等 7 秒 */
-      host.innerHTML = '<p class="cmt-tip cmt-warn">当前是用本地文件（file://）打开的，giscus 不允许被 file 页面嵌入，' +
-        '所以评论框显示不出来。<br>看评论或留言请用线上页面：' +
-        '<a href="' + ONLINE_URL + '" target="_blank" rel="noopener">' + ONLINE_URL.replace(/^https?:\/\//, '') + '</a>' +
-        '；本地调试请用 <code>python3 -m http.server</code> 起服务再访问 <code>http://localhost:8000</code>。</p>';
+      host.innerHTML = '<p class="cmt-tip cmt-warn">评论区还没配置好 ▸ 需要填上云服务地址（CLOUD_CMT.base）。</p>';
     } else {
-      var note = document.createElement('p');
-      note.className = 'cmt-tip';
-      note.innerHTML = '用 GitHub 账号登录即可发言 · 评论保存在仓库 Discussions，作者和其他访客都能看到。';
-      panel.appendChild(note);
-      mountGiscus(host, cmtTerm(item));
+      mountComments(host, item);
     }
 
     box.appendChild(panel);

@@ -20,44 +20,52 @@
 
 ## 技术说明
 
-- **单文件实现**：全部结构与逻辑在 `index.html`（3174 行），无构建步骤、无框架，样式与脚本全部内联
+- **单文件实现**：全部结构与逻辑在 `index.html`（3157 行），无构建步骤、无框架，样式与脚本全部内联
 - **数据驱动**：内容由内联 JS 的数据数组渲染——`LOGS`（经历）、`SKILLS`（技能）、`SOCIALS`（联系方式）、`PROJECTS`（作品）、`ACHV`（成就）。改文案只需改对应数组，不必动 DOM
 - **像素图形**：图标是代码里的点阵字符串（`ICONS`），由 `pixelGrid()` 绘制
 - **头像**：`assets/avatar.png`（源图 `assets/头像.png` 居中裁方后缩到 160×160），CSS 用 `image-rendering: pixelated` 最近邻放大保留颗粒感；图片缺失时自动退回点阵 `Z` 图标
 - **字体自托管**：Fusion Pixel（中文正文，78 个 unicode-range 分片）、Press Start 2P（标题）、VT323，均为 SIL OFL-1.1，许可与原文见 LICENSES.md
-- **外部请求**：MUSIC 播放调用网易云音乐外链、评论区加载 giscus（`giscus.app`）；字体与样式不依赖任何 CDN
+- **外部请求**：MUSIC 播放调用网易云音乐外链、评论区从云服务域名加载 `comments.html`；字体、SDK 与样式全部本地自托管，不依赖任何 CDN
 - **日记数据**：正文存浏览器 `localStorage`，仓库根 `diary.json` 是跨设备的共享快照；页面打开时自动拉取合并，导出 HTML 存档（内嵌 `diary-data` JSON，可再次导入）时文件名形如 `diary-archive-20261030.html`
-- **评论**：giscus（GitHub Discussions），每条日记的讨论串由 `data-term`（`日记 <日期时间> · <日记 id>`）唯一确定；组件懒加载，只有点开某条日记的 `COMMENTS` 才注入 iframe
+- **评论**：WorkBuddy 云数据库（PostgreSQL + RLS）+ 自建 iframe 小组件。评论 UI 部署在云服务域名 `https://jibai33-home.app.workbuddy.host/comments.html`，页面用 iframe 内嵌并按 `postMessage` 自适应高度；访客无需登录，填昵称即可留言
 - **部署**：GitHub Pages，`main` 分支根目录直接发布，无需 Actions
 
-## 日记评论（giscus）
+## 日记评论（云端匿名评论）
 
-评论存在仓库的 **Discussions** 里，不需要服务器，也不需要数据库。任何访问者用 GitHub 账号登录即可对某条日记留言，作者在仓库 Discussions 页面或本站都能看到。
+评论存在云数据库 `diary_comments` 表里，访客**不需要登录、不需要 GitHub 账号**，填个昵称就能发言。作者在云服务管理面板里能看到全部评论。
 
-一条日记对应一个讨论串，标题即可读的 term：`日记 2026.10.30 周五 17:01 · <日记 id>`。`id` 来自 `diary.json`、稳定不变，所以不同日记的评论互不混淆，新增/删除日记也不影响已有讨论。第一条评论发出时，giscus 会自动在 `Announcements` 分类下建好对应讨论。
+**为什么评论 UI 跑在另一个域名上**
 
-**当前状态：已接通**（`repo` / `repoId` / `categoryId` 均已填好，仓库 Discussions 已开启，giscus App 已安装）。
+云服务接口按 **Origin 精确匹配** 放行（实测从 `https://jibai33.github.io` 发起的预检直接被 403），而页面本身仍在 GitHub Pages。解法是把评论界面做成独立页面 `comments.html`，部署到云服务自己的域名上，再用 iframe 嵌进日记卡片——iframe 里的请求来自它自己的 origin，天然通过校验。页面地址不变，评论照样能用。
+
+**数据表**
+
+```sql
+CREATE TABLE diary_comments (
+  id         BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  diary_id   TEXT NOT NULL,   -- 对应日记的 id（diary.json 里的稳定 id，退回时间戳）
+  nickname   TEXT NOT NULL,
+  content    TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+-- RLS：anon / authenticated 均可 SELECT 与 INSERT，不允许改删
+```
+
+**前端配置**（`index.html` 顶部）
 
 ```js
-var GISCUS = {
-  repo: 'jibai33/jibai33.github.io',
-  repoId: 'R_kgDOVccitQ',
-  category: 'Announcements',          // 与 categoryId 对应的分类名
-  categoryId: 'DIC_kwDOVccitc4DJ_Im'  // Announcements 的 node id
+var CLOUD_CMT = {
+  base: 'https://jibai33-home.app.workbuddy.host',  // 云服务应用域名
+  page: 'comments.html',
+  share: 'KWLMX3RRCK'                               // 站点访问码，重新发布后如变化需同步更新
 };
 ```
 
-**换分类或换仓库时**，`categoryId` 不必去 giscus.app 页面点：
+`comments.html` 里的 `CLOUD` 常量持有 `endpoint` / `publishableKey`（云服务 `publicConfig`，可公开）。
 
-```bash
-curl -s "https://giscus.app/api/discussions/categories?repo=<owner>/<repo>"
-# {"repositoryId":"R_kgDO...","categories":[{"id":"DIC_kwDO...","name":"Announcements"}, ...]}
-```
+**改样式**：评论组件是独立页面，它的 CSS 与主页面同源（复用 `assets/fonts` 与同一套配色变量），改 `comments.html` 即可，不影响主页面。
 
-返回值里 `repositoryId` 填 `GISCUS.repoId`，所选分类的 `id` 填 `GISCUS.categoryId`，`name` 填 `GISCUS.category`，三者必须来自同一仓库。
-
-`categoryId` 为空时页面不加载评论组件，展开 `COMMENTS` 只会显示开启步骤提示，不会白屏。
-
+**重新发布**：改动 `comments.html` 后需要重新发布到云服务域名，否则线上评论组件还是旧版；`index.html` 单独改则照常推 GitHub Pages。
 
 ## 日记同步
 
@@ -87,11 +95,11 @@ python3 -m http.server 8000
 
 ## 已知限制
 
-- 评论依赖 giscus 与仓库 Discussions：未开启 Discussions / 未安装 giscus App 时评论区不加载；评论者需要 GitHub 账号（giscus 不支持匿名昵称）
-- **评论区必须在 http(s) 页面下打开**：giscus 的 iframe 响应带 `Content-Security-Policy: frame-ancestors`，服务端按客户端传来的 `origin` 回显放行；`file://` 的 origin 是 `null`，永远拿不到放行，所以双击本地 HTML 会看到「评论区不可用」的提示。本地调试请用 `python3 -m http.server` 起服务访问 `http://localhost:8000`
-- 部分预览面板 / 广告拦截会拦掉 `giscus.app/client.js` 这类外链脚本，页面会分别提示「脚本被拦」与「已加载但未渲染」，便于区分是网络问题还是配置问题
-- 评论数据的增删改在 GitHub Discussions 里进行，页面只做展示，不做本地缓存；离线打开时 iframe 空白
-- **giscus.app 的可达性决定了评论框能否出现**：`giscus.app` 部署在境外，大陆部分网络下会连不上（表现为评论框一直空白）。页面按三种情况分别提示——脚本被拦、脚本已加载但没渲染出 iframe、10 秒无响应（多为网络受限），并给出「去仓库 Discussions 看评论」的直达链接。若长期不可用，可自建 giscus 反向代理，把 `mountGiscus()` 里的 `https://giscus.app/client.js` 换成代理域名（注意 iframe 的 `frame-ancestors` 也要放行你的站点）
+- **评论依赖云服务域名可达**：评论组件托管在 `jibai33-home.app.workbuddy.host`，该域名不通时 iframe 会空白，页面 12 秒后提示并给出「新窗口打开评论页」的链接
+- **评论 UI 与页面不同源**：`comments.html` 改动后必须重新发布到云服务域名才生效；只推 GitHub Pages 不会更新线上评论组件
+- **重新发布会换 sharecode**：`CLOUD_CMT.share` 与发布链接里的一致，发布链接变化时应同步更新该常量，否则 iframe 会拿到 403
+- 评论是**匿名**的：昵称由访客自填，没有账号体系，也没有审核；如需过滤可在云数据库里直接删除行，或后续加敏感词校验
+- 评论不做本地缓存，离线打开时评论区空白；发言有 20 秒冷却，防止误触重复提交
 - MUSIC 播放依赖网易云音乐的外链接口，歌曲可能因版权或接口调整而失效
 - 音效受浏览器自动播放策略限制，需首次交互后才解锁
 - 日记正文只存在当前浏览器的 `localStorage`（清除站点数据即丢失），仓库 `diary.json` 是手动 PUBLISH 或 SYNC 提交的共享快照；重要内容请用 EXPORT 另存一份

@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>COMMENTS</title>
+<link rel="stylesheet" href="assets/fonts/fusion/font.css" />
+<style>
+  @font-face {
+    font-family: 'PressStart';
+    src: url('assets/fonts/press-start-2p.woff2') format('woff2');
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+  }
+  @font-face {
+    font-family: 'VT323';
+    src: url('assets/fonts/vt323.woff2') format('woff2');
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+  }
+
+  :root {
+    --bg: #1a1c2c;
+    --panel: #20233a;
+    --white: #ffffff;
+    --ink: #0b0c14;
+    --yellow: #f9d949;
+    --red: #e5474c;
+    --green: #3ddc84;
+    --blue: #4fa9f0;
+    --muted: #8b91ad;
+    --line: rgba(255, 255, 255, 0.16);
+    --px: 'PressStart', 'FusionPixel', 'PingFang SC', monospace;
+    --body: 'FusionPixel', 'VT323', 'PingFang SC', 'Hiragino Sans GB', monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    background: transparent;
+    color: #d5d8e6;
+    font-family: var(--body);
+    font-size: 13px;
+    line-height: 1.7;
+    -webkit-font-smoothing: none;
+  }
+
+  body { padding: 2px 2px 4px; }
+
+  /* ---------- 列表 ---------- */
+  .cmt-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--px);
+    font-size: 8px;
+    letter-spacing: 0.5px;
+    color: var(--blue);
+    padding-bottom: 6px;
+    border-bottom: 1px dashed rgba(255, 255, 255, 0.14);
+  }
+  .cmt-bar .n { color: var(--yellow); }
+  .cmt-bar .hint {
+    margin-left: auto;
+    font-family: var(--body);
+    font-size: 11px;
+    letter-spacing: 0;
+    color: #5d6480;
+  }
+
+  .cmt-list { margin-top: 6px; }
+
+  .cmt-item {
+    padding: 7px 0;
+    border-bottom: 1px dashed rgba(255, 255, 255, 0.1);
+  }
+  .cmt-item:last-child { border-bottom: none; }
+
+  .cmt-meta {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    font-family: var(--px);
+    font-size: 8px;
+    letter-spacing: 0.5px;
+  }
+  .cmt-meta .nick { color: var(--green); word-break: break-all; }
+  .cmt-meta .time { color: #5d6480; margin-left: auto; font-size: 7px; }
+
+  .cmt-text {
+    margin-top: 3px;
+    font-size: 13px;
+    line-height: 1.75;
+    color: #d5d8e6;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .cmt-empty, .cmt-tip {
+    font-size: 12px;
+    color: #5d6480;
+    padding: 8px 0;
+  }
+  .cmt-tip.err { color: #e5b33b; }
+
+  /* ---------- 发表 ---------- */
+  .cmt-form { margin-top: 10px; }
+  .cmt-row { display: flex; gap: 8px; align-items: center; }
+
+  input[type="text"], textarea {
+    width: 100%;
+    font-family: var(--body);
+    font-size: 13px;
+    color: #eef0f8;
+    background: rgba(0, 0, 0, 0.42);
+    border: 2px solid rgba(255, 255, 255, 0.18);
+    padding: 6px 8px;
+    outline: none;
+    transition: border-color 0.15s steps(2, end);
+  }
+  input[type="text"] { max-width: 190px; }
+  input[type="text"]::placeholder, textarea::placeholder { color: #5d6480; }
+  input[type="text"]:focus, textarea:focus { border-color: var(--yellow); }
+
+  textarea {
+    margin-top: 8px;
+    min-height: 62px;
+    resize: vertical;
+    line-height: 1.7;
+  }
+
+  .cmt-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 8px;
+  }
+
+  button {
+    font-family: var(--px);
+    font-size: 8px;
+    letter-spacing: 0.5px;
+    color: var(--ink);
+    background: var(--yellow);
+    border: none;
+    padding: 8px 12px;
+    cursor: pointer;
+    box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.45);
+    transition: transform 0.08s steps(2, end), box-shadow 0.08s steps(2, end);
+  }
+  button:hover { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.5); }
+  button:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 rgba(0, 0, 0, 0.5); }
+  button[disabled] {
+    background: #3a3f5c;
+    color: #8b91ad;
+    cursor: not-allowed;
+    box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.3);
+    transform: none;
+  }
+
+  .counter {
+    margin-left: auto;
+    font-family: var(--px);
+    font-size: 7px;
+    color: #5d6480;
+  }
+  .counter.over { color: var(--red); }
+
+  .status {
+    margin-top: 6px;
+    font-size: 12px;
+    min-height: 16px;
+    color: #5d6480;
+  }
+  .status.ok { color: var(--green); }
+  .status.err { color: var(--red); }
+
+  @media (max-width: 520px) {
+    input[type="text"] { max-width: 100%; }
+  }
+</style>
+</head>
+<body>
+  <div class="cmt-bar">
+    <span>COMMENTS</span>
+    <span class="n" id="count">·</span>
+    <span class="hint" id="hint">不需要登录，填昵称即可</span>
+  </div>
+
+  <div class="cmt-list" id="list">
+    <p class="cmt-tip">LOADING ▸</p>
+  </div>
+
+  <form class="cmt-form" id="form" autocomplete="off">
+    <div class="cmt-row">
+      <input type="text" id="nick" maxlength="24" placeholder="你的昵称" />
+    </div>
+    <textarea id="content" maxlength="600" placeholder="写点什么…（Ctrl / ⌘ + Enter 发送）"></textarea>
+    <div class="cmt-actions">
+      <button type="submit" id="send">POST ▲</button>
+      <span class="counter" id="counter">0 / 600</span>
+    </div>
+    <p class="status" id="status"></p>
+  </form>
+
+<script src="assets/cloud/workbuddy-cloud.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  /* ---------- 云服务配置（publicConfig，来自 workbuddy 云服务） ---------- */
+  var CLOUD = {
+    endpoint: 'https://jibai33-home.app.workbuddy.host',
+    oauthRelayBaseUrl: 'https://www.workbuddy.cn/v2/as/genie-baas/oauth',
+    publishableKey: 'wbpk_SXX39Yd1v55LAtmhsLVxb5_S40vpmxz0v1HKqQVMed7lndQ41SOhnnm',
+    table: 'diary_comments'
+  };
+
+  var MAX_LEN = 600;
+  var NICK_KEY = 'pixel-cmt-nick';
+  var COOL_KEY = 'pixel-cmt-last';
+
+  var qs = new URLSearchParams(location.search);
+  var diaryId = (qs.get('diary') || '').slice(0, 80);
+  var diaryTitle = qs.get('title') || '';
+
+  var listEl = document.getElementById('list');
+  var countEl = document.getElementById('count');
+  var hintEl = document.getElementById('hint');
+  var formEl = document.getElementById('form');
+  var nickEl = document.getElementById('nick');
+  var contentEl = document.getElementById('content');
+  var counterEl = document.getElementById('counter');
+  var statusEl = document.getElementById('status');
+  var sendEl = document.getElementById('send');
+
+  var cloud = null;
+
+  /* 高度自适应：把自身高度报给父页面 */
+  function reportHeight() {
+    var h = Math.ceil(document.documentElement.getBoundingClientRect().height);
+    try {
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage({ type: 'pixel-cmt-height', height: h }, '*');
+      }
+    } catch (e) {}
+  }
+
+  function setStatus(text, kind) {
+    statusEl.textContent = text || '';
+    statusEl.className = 'status' + (kind ? ' ' + kind : '');
+    reportHeight();
+  }
+
+  function fmtTime(iso) {
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    var p = function (n) { return n < 10 ? '0' + n : '' + n; };
+    return d.getFullYear() + '.' + p(d.getMonth() + 1) + '.' + p(d.getDate()) +
+      ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+  }
+
+  function el(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    return n;
+  }
+
+  function renderList(rows) {
+    listEl.innerHTML = '';
+    if (!rows.length) {
+      listEl.appendChild(el('p', 'cmt-empty', '还没有人留言 ▸ 你可以是第一个。'));
+      countEl.textContent = '0';
+      reportHeight();
+      return;
+    }
+    countEl.textContent = String(rows.length);
+    rows.forEach(function (row) {
+      var item = el('div', 'cmt-item');
+      var meta = el('div', 'cmt-meta');
+      meta.appendChild(el('span', 'nick', row.nickname || '匿名'));
+      meta.appendChild(el('span', 'time', fmtTime(row.created_at)));
+      item.appendChild(meta);
+      item.appendChild(el('div', 'cmt-text', row.content));
+      listEl.appendChild(item);
+    });
+    reportHeight();
+  }
+
+  function fail(msg) {
+    listEl.innerHTML = '';
+    listEl.appendChild(el('p', 'cmt-tip err', msg));
+    reportHeight();
+  }
+
+  function getCloud() {
+    if (cloud) return cloud;
+    if (!window.WorkBuddyCloud || !window.WorkBuddyCloud.createWorkBuddyCloud) {
+      throw new Error('SDK 未加载');
+    }
+    cloud = window.WorkBuddyCloud.createWorkBuddyCloud({
+      endpoint: CLOUD.endpoint,
+      oauthRelayBaseUrl: CLOUD.oauthRelayBaseUrl,
+      publishableKey: CLOUD.publishableKey
+    });
+    return cloud;
+  }
+
+  function loadComments() {
+    if (!diaryId) { fail('缺少日记标识，无法加载评论。'); return Promise.resolve(); }
+    var db;
+    try { db = getCloud().database; } catch (e) { fail('评论组件初始化失败：' + e.message); return Promise.resolve(); }
+    return db.from(CLOUD.table)
+      .select('id, nickname, content, created_at')
+      .eq('diary_id', diaryId)
+      .order('created_at', { ascending: true })
+      .limit(200)
+      .then(function (res) {
+        if (res && res.error) {
+          fail('评论加载失败：' + (res.error.message || '网络异常') + '（稍后重试）');
+          return;
+        }
+        var rows = Array.isArray(res && res.data) ? res.data : [];
+        renderList(rows);
+      })
+      .catch(function (err) {
+        fail('评论加载失败：' + (err && err.message ? err.message : '网络异常'));
+      });
+  }
+
+  function updateCounter() {
+    var n = contentEl.value.length;
+    counterEl.textContent = n + ' / ' + MAX_LEN;
+    counterEl.className = 'counter' + (n > MAX_LEN ? ' over' : '');
+  }
+
+  contentEl.addEventListener('input', updateCounter);
+
+  contentEl.addEventListener('keydown', function (e) {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+      e.preventDefault();
+      if (!sendEl.disabled) submit();
+    }
+  });
+
+  function submit() {
+    var nick = nickEl.value.trim();
+    var text = contentEl.value.trim();
+
+    if (!nick) { setStatus('先填个昵称吧 ▸', 'err'); nickEl.focus(); return; }
+    if (!text) { setStatus('内容不能为空 ▸', 'err'); contentEl.focus(); return; }
+    if (text.length > MAX_LEN) { setStatus('超过 ' + MAX_LEN + ' 字了 ▸', 'err'); return; }
+
+    var last = Number(localStorage.getItem(COOL_KEY) || 0);
+    if (Date.now() - last < 20000) {
+      setStatus('刚发过啦，等几秒再说 ▸', 'err');
+      return;
+    }
+
+    sendEl.disabled = true;
+    setStatus('POSTING ▸');
+
+    var db;
+    try { db = getCloud().database; } catch (e) { sendEl.disabled = false; setStatus('评论组件初始化失败 ▸', 'err'); return; }
+
+    db.from(CLOUD.table)
+      .insert({ diary_id: diaryId, nickname: nick.slice(0, 24), content: text })
+      .select()
+      .then(function (res) {
+        sendEl.disabled = false;
+        if (res && res.error) {
+          setStatus('发送失败：' + (res.error.message || '服务异常'), 'err');
+          return;
+        }
+        localStorage.setItem(NICK_KEY, nick);
+        localStorage.setItem(COOL_KEY, String(Date.now()));
+        contentEl.value = '';
+        updateCounter();
+        setStatus('已发布 ▸ 谢谢留言', 'ok');
+        loadComments();
+      })
+      .catch(function (err) {
+        sendEl.disabled = false;
+        setStatus('发送失败：' + (err && err.message ? err.message : '网络异常'), 'err');
+      });
+  }
+
+  formEl.addEventListener('submit', function (e) {
+    e.preventDefault();
+    submit();
+  });
+
+  /* ---------- 启动 ---------- */
+  try {
+    var savedNick = localStorage.getItem(NICK_KEY);
+    if (savedNick) nickEl.value = savedNick;
+  } catch (e) {}
+
+  if (diaryTitle) hintEl.textContent = diaryTitle;
+  updateCounter();
+  reportHeight();
+  window.addEventListener('load', reportHeight);
+  window.addEventListener('resize', reportHeight);
+  if (window.ResizeObserver) new ResizeObserver(reportHeight).observe(document.body);
+
+  loadComments();
+})();
+</script>
+</body>
+</html>
