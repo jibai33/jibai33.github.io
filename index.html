@@ -1079,6 +1079,7 @@
   .proj-link:hover { border-color: var(--yellow); }
   .proj-link:focus-visible { outline: 3px solid var(--yellow); outline-offset: 2px; }
   .proj .src {
+    display: block;
     margin-top: 8px;
     font-family: var(--px);
     font-size: 7px;
@@ -1086,6 +1087,11 @@
     color: var(--yellow);
   }
   .proj-link:hover .src { color: #fff; }
+  .proj .src-link { cursor: pointer; }
+  .proj .src-link:hover {
+    color: var(--green);
+    text-decoration: underline;
+  }
   .proj-thumb {
     display: grid;
     place-items: center;
@@ -1681,7 +1687,7 @@
     { icon: 'pin', text: '西安 · 中国', k: 'LOC' },
     { icon: 'cap', text: 'B.Eng. Computer Science & Technology', k: 'EDU' },
     { icon: 'mail', text: '2209252635@qq.com', k: 'MAIL' },
-    { icon: 'heart', text: '像素画 / 独立游戏 / 手冲', k: 'LIKE' }
+    { icon: 'heart', text: '像素画 / 独立游戏 / COFFEE', k: 'LIKE' }
   ];
 
   var metaHost = document.getElementById('meta');
@@ -1941,8 +1947,10 @@
       tag: 'FACTORY SITE / WEB',
       desc: '包装工厂整站设计：从品牌调性、产品线展示到响应式前端实现。',
       clear: 9,
-      href: 'https://github.com/jibai33/boguan-packaging',
-      srcLabel: '↗ GITHUB'
+      href: 'https://jibai33.github.io/boguan-packaging/',
+      hrefLabel: 'LIVE DEMO · boguan-packaging',
+      srcLabel: '</> GITHUB',
+      extra: { href: 'https://github.com/jibai33/boguan-packaging' }
     },
     {
       icon: 'diamond',
@@ -1962,8 +1970,9 @@
       card.href = p.href;
       card.target = '_blank';
       card.rel = 'noopener';
-      card.title = p.name + ' · ' + p.href;
-    }
+    card.title = p.name + ' · ' + (p.hrefLabel || 'VIEW');
+    if (p.hrefLabel) card.setAttribute('aria-label', p.name + ' ' + p.hrefLabel);
+  }
     card.style.animationDelay = 1.2 + i * 0.15 + 's';
 
     var thumb = document.createElement('div');
@@ -2000,9 +2009,18 @@
     card.appendChild(d);
 
     if (p.srcLabel) {
-      var src = document.createElement('div');
-      src.className = 'src';
+      var src = document.createElement('span');
+      src.className = 'src' + (p.extra ? ' src-link' : '');
       src.textContent = p.srcLabel;
+      if (p.extra) {
+        src.title = '在 GitHub 打开源码仓库';
+        src.addEventListener('click', function (ev) {
+          ev.preventDefault();
+          ev.stopPropagation();
+          window.open(p.extra.href, '_blank', 'noopener');
+          beep(720, 0.06);
+        });
+      }
       card.appendChild(src);
     }
 
