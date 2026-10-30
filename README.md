@@ -91,6 +91,7 @@ python3 -m http.server 8000
 - **评论区必须在 http(s) 页面下打开**：giscus 的 iframe 响应带 `Content-Security-Policy: frame-ancestors`，服务端按客户端传来的 `origin` 回显放行；`file://` 的 origin 是 `null`，永远拿不到放行，所以双击本地 HTML 会看到「评论区不可用」的提示。本地调试请用 `python3 -m http.server` 起服务访问 `http://localhost:8000`
 - 部分预览面板 / 广告拦截会拦掉 `giscus.app/client.js` 这类外链脚本，页面会分别提示「脚本被拦」与「已加载但未渲染」，便于区分是网络问题还是配置问题
 - 评论数据的增删改在 GitHub Discussions 里进行，页面只做展示，不做本地缓存；离线打开时 iframe 空白
+- **giscus.app 的可达性决定了评论框能否出现**：`giscus.app` 部署在境外，大陆部分网络下会连不上（表现为评论框一直空白）。页面按三种情况分别提示——脚本被拦、脚本已加载但没渲染出 iframe、10 秒无响应（多为网络受限），并给出「去仓库 Discussions 看评论」的直达链接。若长期不可用，可自建 giscus 反向代理，把 `mountGiscus()` 里的 `https://giscus.app/client.js` 换成代理域名（注意 iframe 的 `frame-ancestors` 也要放行你的站点）
 - MUSIC 播放依赖网易云音乐的外链接口，歌曲可能因版权或接口调整而失效
 - 音效受浏览器自动播放策略限制，需首次交互后才解锁
 - 日记正文只存在当前浏览器的 `localStorage`（清除站点数据即丢失），仓库 `diary.json` 是手动 PUBLISH 或 SYNC 提交的共享快照；重要内容请用 EXPORT 另存一份

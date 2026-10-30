@@ -2518,18 +2518,26 @@
       host.appendChild(warned);
     }
     var discLink = '<a href="https://github.com/' + GISCUS.repo + '/discussions" target="_blank" rel="noopener">去仓库 Discussions 看评论</a>';
+    var loaded = false;
 
     s.onerror = function () {
       warn('拉不到 giscus.app/client.js：当前网络或预览环境拦了外链脚本。' +
         '换普通浏览器打开线上页面就能加载 · ' + discLink);
     };
     s.onload = function () {
+      loaded = true;
       setTimeout(function () {
         if (host.querySelector('iframe')) return;
         warn('giscus 脚本已加载但没渲染出评论框：多半是分类 id 与 Discussions 分类不匹配（当前 <code>' +
           GISCUS.category + '</code> · <code>' + GISCUS.categoryId + '</code>）· ' + discLink);
       }, 2500);
     };
+    /* 网络把请求挂住时 onerror 可能迟迟不触发，用一个总超时兜底，避免评论区一片空白 */
+    setTimeout(function () {
+      if (loaded || host.querySelector('iframe')) return;
+      warn('giscus.app 在 10 秒内没有响应，评论框加载不出来。常见原因是当前网络访问 giscus.app 受限（国内部分网络需要代理），' +
+        '可以先' + discLink + '，或访问 <a href="https://giscus.app/zh-CN" target="_blank" rel="noopener">giscus.app</a> 自测连通性。');
+    }, 10000);
 
     var hostObs = new MutationObserver(function () {
       if (host.querySelector('iframe') && warned) { warned.remove(); warned = null; hostObs.disconnect(); }
