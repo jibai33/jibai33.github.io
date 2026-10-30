@@ -14,9 +14,11 @@ function extract(name) {
 }
 
 const MOODS = [{ id: 'happy' }, { id: 'calm' }, { id: 'tired' }, { id: 'sad' }];
-const factory = new Function('MOODS', extract('diaryKey') + '\n' + extract('mergeRemoteEntries') +
-  '\nreturn { diaryKey: diaryKey, mergeRemoteEntries: mergeRemoteEntries };');
-const { diaryKey, mergeRemoteEntries } = factory(MOODS);
+const factory = new Function('MOODS',
+  extract('diaryKey') + '\n' + extract('mergeRemoteEntries') + '\n' +
+  extract('b64encode') + '\n' + extract('decodeContents') +
+  '\nreturn { diaryKey: diaryKey, mergeRemoteEntries: mergeRemoteEntries, b64encode: b64encode, decodeContents: decodeContents };');
+const { diaryKey, mergeRemoteEntries, b64encode, decodeContents } = factory(MOODS);
 
 test('远端合并进空本地并按 ts 倒序', () => {
   const remote = [
@@ -83,4 +85,27 @@ test('仓库 diary.json 结构合法且可合并', () => {
   });
   const sorted = out.list.every((it, i, arr) => i === 0 || arr[i - 1].ts >= it.ts);
   assert.ok(sorted, '合并结果必须按时间倒序');
+});
+
+test('b64encode 对中文 UTF-8 编码可往返', () => {
+  const text = JSON.stringify([{ id: 'a', ts: 1, mood: 'happy', text: '你好，十一月！🎮' }], null, 2) + '\n';
+  const b64 = b64encode(text);
+  assert.match(b64, /^[A-Za-z0-9+/]+={0,2}$/, '必须是标准 base64 无换行');
+  const back = Buffer.from(b64, 'base64').toString('utf8');
+  assert.equal(back, text);
+});
+
+test('decodeContents 解析 contents API 响应（含换行 base64）', () => {
+  const list = [{ id: 'r1', ts: 100, mood: 'calm', text: '远端记录' }];
+  const raw = b64encode(JSON.stringify(list));
+  const wrapped = raw.replace(/(.{60})/g, '$1\n'); // GitHub 返回的 content 每 60 字符换行
+  const parsed = decodeContents({ sha: 'abc123', content: wrapped });
+  assert.equal(parsed.sha, 'abc123');
+  assert.deepEqual(parsed.list, list);
+});
+
+test('decodeContents 对非法输入返回 null', () => {
+  assert.equal(decodeContents(null), null);
+  assert.equal(decodeContents({ sha: 'x', content: b64encode('{"not":"array"}') }), null);
+  assert.equal(decodeContents({ sha: 'x', content: '!!!not-base64!!!' }), null);
 });

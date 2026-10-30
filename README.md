@@ -16,11 +16,11 @@
 | 联系我 | GitHub、Email、知乎 |
 | 作品仓库 | 3 个作品卡片，各带「CLEAR」进度条：像素官网生成器、地牢漫步、8-BIT 品牌手册 |
 | 成就墙 | 6 枚成就徽章：FIRST COMMIT、PIXEL MASTER、SHIP IT、50K DL、NIGHT OWL、COIN HOARDER |
-| 日记本 | 500 字上限、4 种心情标签、按日期区间筛选、导出独立 HTML 存档、JSON 导入导出、与仓库 `diary.json` 自动合并 |
+| 日记本 | 500 字上限、4 种心情标签、按日期区间筛选、导出独立 HTML 存档、JSON 导入导出、与仓库 `diary.json` 自动合并、`SYNC ▲` 一键直传仓库 |
 
 ## 技术说明
 
-- **单文件实现**：全部结构与逻辑在 `index.html`（2768 行），无构建步骤、无框架，样式与脚本全部内联
+- **单文件实现**：全部结构与逻辑在 `index.html`（2915 行），无构建步骤、无框架，样式与脚本全部内联
 - **数据驱动**：内容由内联 JS 的数据数组渲染——`LOGS`（经历）、`SKILLS`（技能）、`SOCIALS`（联系方式）、`PROJECTS`（作品）、`ACHV`（成就）。改文案只需改对应数组，不必动 DOM
 - **像素图形**：图标是代码里的点阵字符串（`ICONS`），由 `pixelGrid()` 绘制，不含图片资源
 - **字体自托管**：Fusion Pixel（中文正文，78 个 unicode-range 分片）、Press Start 2P（标题）、VT323，均为 SIL OFL-1.1，许可与原文见 LICENSES.md
@@ -32,9 +32,13 @@
 
 ```
 本地/线上浏览器 localStorage  ──PUBLISH──▶ 下载 diary.json ──git commit/push──▶ 仓库根 diary.json
-        ▲                                                                              │
+        ▲                          │                                                   │
+        │                          └──SYNC（配 token）──GET sha → 合并 → PUT───────────┘
         └──────────────── 打开页面时 fetch + 合并（去重 by ts|text，跳过墓碑） ◀──────────┘
 ```
+
+- **直传**：填入 GitHub fine-grained token（仅本仓库 `Contents: Read and write`）后点 `SYNC ▲`，页面走 Contents API——`GET` 取当前 `sha` 与内容 → 与本地按 `ts|text` 合并 → `PUT` 整文件写回，GitHub 自动生成一次提交，Pages 约 1 分钟更新。token 只存本机 `localStorage`（`linyi_diary_token`），随时可在 GitHub 撤销
+- **CORS**：`api.github.com` 对 `PUT` 预检返回 `access-control-allow-methods: GET, POST, PATCH, PUT, DELETE` 与 `allow-origin: *`，页面可直连
 
 - **拉取**：页面加载后 `fetch diary.json`（带时间戳绕 CDN 缓存，线上取同源相对路径，本地打开取 `https://jibai33.github.io/diary.json`，GitHub Pages 返回 `access-control-allow-origin: *`），按 `ts|text` 去重合并进 `localStorage`，提示 `SYNC +N`
 - **推送**：日记区 `PUBLISH` 按钮把当前全部日记下载为 `diary.json`，放到仓库根提交推送后，任何设备打开页面都能拉到
@@ -54,8 +58,9 @@ python3 -m http.server 8000
 
 - MUSIC 播放依赖网易云音乐的外链接口，歌曲可能因版权或接口调整而失效
 - 音效受浏览器自动播放策略限制，需首次交互后才解锁
-- 日记正文只存在当前浏览器的 `localStorage`（清除站点数据即丢失），仓库 `diary.json` 是手动 PUBLISH 后提交的共享快照；重要内容请用 EXPORT 另存一份
-- 同步是「仓库 → 浏览器」的自动合并 + 「浏览器 → 仓库」的手动发布；浏览器里新写的日记在 PUBLISH 之前不会出现在其他设备上
+- 日记正文只存在当前浏览器的 `localStorage`（清除站点数据即丢失），仓库 `diary.json` 是手动 PUBLISH 或 SYNC 提交的共享快照；重要内容请用 EXPORT 另存一份
+- 同步是「仓库 → 浏览器」的自动合并 + 「浏览器 → 仓库」的手动触发（PUSH 下载或 SYNC 直传）；浏览器里新写的日记在触发之前不会出现在其他设备上
+- `SYNC ▲` 依赖本机 `localStorage` 里的 GitHub token：清除站点数据会一并清掉 token，需要重新填入；token 失效或权限不足时页面会提示 401/403
 
 ## 许可
 

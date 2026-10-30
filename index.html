@@ -916,6 +916,33 @@
     gap: 8px;
     margin-top: 12px;
   }
+  .diary-token {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
+    padding: 8px;
+    background: rgba(0, 0, 0, 0.28);
+    border: 3px dashed rgba(255, 255, 255, 0.22);
+  }
+  .diary-token input {
+    flex: 1 1 220px;
+    min-width: 0;
+    padding: 6px 8px;
+    background: rgba(0, 0, 0, 0.4);
+    border: 3px solid rgba(255, 255, 255, 0.24);
+    color: #dfe3f2;
+    font-family: var(--body);
+    font-size: 13px;
+    letter-spacing: 0.5px;
+  }
+  .diary-token input:focus { outline: none; border-color: var(--yellow); }
+  .diary-token .tk-note {
+    font-family: var(--body);
+    font-size: 11px;
+    color: #5d6480;
+  }
   .mini-btn {
     padding: 5px 9px 4px;
     background: rgba(0, 0, 0, 0.25);
@@ -1369,8 +1396,16 @@
           <button class="mini-btn" id="diaryExport" type="button" title="导出像素风存档（HTML，可再导入）">EXPORT</button>
           <button class="mini-btn" id="diaryImport" type="button" title="导入存档（.html 或 .json）">IMPORT</button>
           <button class="mini-btn" id="diaryPublish" type="button" title="下载 diary.json，放进仓库根提交后线上即可读到">PUBLISH</button>
+          <button class="mini-btn" id="diarySync" type="button" title="直接写入 GitHub 仓库（需先配置 token）">SYNC ▲</button>
           <input type="file" id="diaryFile" accept=".html,.htm,.json,text/html,application/json" hidden />
           <span class="diary-hint">⌘/CTRL+ENTER 保存 · 打开时自动合并仓库 diary.json</span>
+        </div>
+        <div class="diary-token" id="diaryTokenBox" hidden>
+          <input id="diaryToken" type="password" autocomplete="off" spellcheck="false"
+            placeholder="GitHub fine-grained token（仅本仓库 Contents 读写）" aria-label="GitHub token" />
+          <button class="mini-btn" id="diaryTokenSave" type="button">保存</button>
+          <button class="mini-btn" id="diaryTokenClear" type="button">清除</button>
+          <span class="tk-note">仅存本机浏览器，可随时在 GitHub 撤销</span>
         </div>
       </section>
     </div>
@@ -2678,6 +2713,118 @@
       })
       .catch(function () { /* 离线 / 无存档时静默 */ });
   }
+
+  /* ---------- GitHub 直传（fine-grained token，仅本仓库 Contents 读写） ---------- */
+  var TOKEN_KEY = 'linyi_diary_token';
+  var CONTENTS_API = 'https://api.github.com/repos/jibai33/jibai33.github.io/contents/diary.json';
+  var syncBtn = document.getElementById('diarySync');
+  var tokenBox = document.getElementById('diaryTokenBox');
+  var tokenInput = document.getElementById('diaryToken');
+
+  function getToken() {
+    try { return localStorage.getItem(TOKEN_KEY) || ''; } catch (err) { return ''; }
+  }
+  function setToken(v) {
+    try {
+      if (v) localStorage.setItem(TOKEN_KEY, v);
+      else localStorage.removeItem(TOKEN_KEY);
+    } catch (err) { showToast('TOKEN 保存失败'); }
+  }
+  function b64encode(str) {
+    var bytes = new TextEncoder().encode(str);
+    var bin = '';
+    for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    return btoa(bin);
+  }
+  /* 解析 GitHub contents API 响应：{ sha, list } */
+  function decodeContents(resp) {
+    if (!resp || typeof resp.content !== 'string') return null;
+    try {
+      var bin = atob(resp.content.replace(/\s/g, ''));
+      var bytes = new Uint8Array(bin.length);
+      for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      var parsed = JSON.parse(new TextDecoder().decode(bytes));
+      return Array.isArray(parsed) ? { sha: resp.sha || null, list: parsed } : null;
+    } catch (err) { return null; }
+  }
+  function apiHeaders(token) {
+    return {
+      'Authorization': 'Bearer ' + token,
+      'Accept': 'application/vnd.github+json',
+      'Content-Type': 'application/json'
+    };
+  }
+  function restoreSyncBtn() {
+    syncBtn.disabled = false;
+    syncBtn.textContent = 'SYNC ▲';
+  }
+  function showTokenPanel() {
+    tokenBox.hidden = false;
+    tokenInput.value = getToken();
+    tokenInput.focus();
+  }
+  function syncFail(err) {
+    var msg = String((err && err.message) || err);
+    if (msg.indexOf('401') >= 0) showToast('token 无效或已过期');
+    else if (msg.indexOf('403') >= 0) showToast('token 缺少 Contents 写权限');
+    else if (msg.indexOf('409') >= 0) showToast('冲突：再点一次 SYNC');
+    else if (msg.indexOf('404') >= 0) showToast('仓库路径不对（404）');
+    else showToast('SYNC 失败 · ' + msg);
+    restoreSyncBtn();
+  }
+  function syncToGitHub() {
+    var token = getToken();
+    if (!token) { showTokenPanel(); showToast('先填入 GitHub token'); return; }
+    syncBtn.disabled = true;
+    syncBtn.textContent = 'SYNC...';
+    var saved = null;
+    fetch(CONTENTS_API + '?ref=main&t=' + Date.now(), { headers: apiHeaders(token), cache: 'no-store' })
+      .then(function (r) {
+        if (r.status === 404) return null; /* 文件还不存在 → 首次创建 */
+        if (!r.ok) throw new Error('GET ' + r.status);
+        return r.json();
+      })
+      .then(function (resp) {
+        var remote = resp ? decodeContents(resp) : { sha: null, list: [] };
+        if (!remote) throw new Error('远端 diary.json 解析失败');
+        /* 先合并远端再整文件写回，避免覆盖掉其他设备写过的条目 */
+        var merged = mergeRemoteEntries(loadDiary(), remote.list, loadTomb());
+        var payload = {
+          message: 'chore(diary): 同步日记 ' + merged.list.length + ' 条',
+          content: b64encode(JSON.stringify(merged.list, null, 2) + '\n'),
+          branch: 'main'
+        };
+        if (remote.sha) payload.sha = remote.sha;
+        saved = merged.list;
+        return fetch(CONTENTS_API, {
+          method: 'PUT',
+          headers: apiHeaders(token),
+          body: JSON.stringify(payload)
+        });
+      })
+      .then(function (r) {
+        if (!r || !r.ok) throw new Error('PUT ' + (r ? r.status : 'no-response'));
+        if (saved) { persistDiary(saved); renderDiary(); }
+        showToast('SYNCED → GitHub ×' + (saved ? saved.length : 0));
+        beep(880, 0.08);
+        restoreSyncBtn();
+      })
+      .catch(syncFail);
+  }
+
+  syncBtn.addEventListener('click', syncToGitHub);
+  document.getElementById('diaryTokenSave').addEventListener('click', function () {
+    var v = tokenInput.value.trim();
+    if (!v) { showToast('token 为空'); return; }
+    setToken(v);
+    tokenBox.hidden = true;
+    showToast('TOKEN 已存本机 · 再点 SYNC 上传');
+  });
+  document.getElementById('diaryTokenClear').addEventListener('click', function () {
+    setToken('');
+    tokenInput.value = '';
+    showToast('TOKEN 已清除');
+  });
 
   function importFromHash() {
     var m = /^#import=([A-Za-z0-9+/=]+)$/.exec(location.hash);
