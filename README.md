@@ -20,9 +20,10 @@
 
 ## 技术说明
 
-- **单文件实现**：全部结构与逻辑在 `index.html`（2915 行），无构建步骤、无框架，样式与脚本全部内联
+- **单文件实现**：全部结构与逻辑在 `index.html`（2966 行），无构建步骤、无框架，样式与脚本全部内联
 - **数据驱动**：内容由内联 JS 的数据数组渲染——`LOGS`（经历）、`SKILLS`（技能）、`SOCIALS`（联系方式）、`PROJECTS`（作品）、`ACHV`（成就）。改文案只需改对应数组，不必动 DOM
-- **像素图形**：图标是代码里的点阵字符串（`ICONS`），由 `pixelGrid()` 绘制，不含图片资源
+- **像素图形**：图标是代码里的点阵字符串（`ICONS`），由 `pixelGrid()` 绘制
+- **头像**：`assets/avatar.png`（源图 `assets/头像.png` 居中裁方后缩到 160×160），CSS 用 `image-rendering: pixelated` 最近邻放大保留颗粒感；图片缺失时自动退回点阵 `Z` 图标
 - **字体自托管**：Fusion Pixel（中文正文，78 个 unicode-range 分片）、Press Start 2P（标题）、VT323，均为 SIL OFL-1.1，许可与原文见 LICENSES.md
 - **外部请求**：仅 MUSIC 播放调用网易云音乐的第三方外链；字体与样式不依赖任何 CDN
 - **日记数据**：正文存浏览器 `localStorage`，仓库根 `diary.json` 是跨设备的共享快照；页面打开时自动拉取合并，导出 HTML 存档（内嵌 `diary-data` JSON，可再次导入）时文件名形如 `diary-archive-20261030.html`
