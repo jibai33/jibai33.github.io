@@ -417,7 +417,7 @@
   .logs { margin-top: 18px; }
   .log-item {
     display: grid;
-    grid-template-columns: 108px 1fr;
+    grid-template-columns: 122px 1fr;
     gap: 16px;
     padding: 14px 0;
     animation: fadeUp 0.5s steps(4, end) both;
@@ -951,6 +951,52 @@
     animation: popIn 0.3s steps(4, end) both;
   }
 
+  /* ---------- 本地模式提示条 ---------- */
+  .local-notice {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 60;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 8px 14px;
+    padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+    background: var(--bg-deep);
+    border-top: 3px solid var(--yellow);
+    box-shadow: 0 -4px 0 rgba(0, 0, 0, 0.45);
+  }
+
+  .local-notice .ln-txt {
+    max-width: 620px;
+    color: #c9cee4;
+    font-family: var(--body);
+    font-size: 15px;
+    line-height: 1.45;
+  }
+
+  .local-notice .ln-txt b {
+    display: inline-block;
+    margin-right: 6px;
+    padding: 3px 5px 2px;
+    background: var(--yellow);
+    color: var(--ink);
+    font-family: var(--px);
+    font-size: 8px;
+    letter-spacing: 0.5px;
+    box-shadow: 2px 2px 0 #000;
+  }
+
+  .local-notice .ln-acts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  body.has-local-notice { padding-bottom: 84px; }
+
   /* ---------- NPC 对话框 ---------- */  .dlg {
     margin: 24px auto 0;
     max-width: 252px;
@@ -983,7 +1029,7 @@
 
   .projects {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
     gap: 12px;
     margin-top: 18px;
   }
@@ -998,6 +1044,21 @@
     transform: translate(-1px, -3px);
     box-shadow: 4px 6px 0 #000;
   }
+  .proj-link {
+    display: block;
+    text-decoration: none;
+    color: inherit;
+  }
+  .proj-link:hover { border-color: var(--yellow); }
+  .proj-link:focus-visible { outline: 3px solid var(--yellow); outline-offset: 2px; }
+  .proj .src {
+    margin-top: 8px;
+    font-family: var(--px);
+    font-size: 7px;
+    letter-spacing: 0.5px;
+    color: var(--yellow);
+  }
+  .proj-link:hover .src { color: #fff; }
   .proj-thumb {
     display: grid;
     place-items: center;
@@ -1307,8 +1368,9 @@
           <button class="mini-btn" id="diaryMore" type="button">MORE ▼</button>
           <button class="mini-btn" id="diaryExport" type="button" title="导出像素风存档（HTML，可再导入）">EXPORT</button>
           <button class="mini-btn" id="diaryImport" type="button" title="导入存档（.html 或 .json）">IMPORT</button>
+          <button class="mini-btn" id="diaryPublish" type="button" title="下载 diary.json，放进仓库根提交后线上即可读到">PUBLISH</button>
           <input type="file" id="diaryFile" accept=".html,.htm,.json,text/html,application/json" hidden />
-          <span class="diary-hint">⌘/CTRL+ENTER 保存 · 数据仅存本浏览器</span>
+          <span class="diary-hint">⌘/CTRL+ENTER 保存 · 打开时自动合并仓库 diary.json</span>
         </div>
       </section>
     </div>
@@ -1458,6 +1520,17 @@
       '..XX.XX..',
       '.........',
       '.........'
+    ],
+    factory: [
+      '.......XX',
+      '.......XX',
+      '..XX...XX',
+      '.XXXX..XX',
+      'XXXXXXXXX',
+      'XXXXXXXXX',
+      'X.XXX.XXX',
+      'X.XXX.XXX',
+      'XXXXXXXXX'
     ],
     trophy: [
       '.........',
@@ -1612,7 +1685,13 @@
   /* ---------- 任务日志 ---------- */
   var LOGS = [
     {
-      date: '2022-2026',
+      date: '2026.02-NOW',
+      title: 'PKUSE · 运维 / 实施 / 设计',
+      sub: '行政执法领域专家 · 陕西',
+      desc: '深耕陕西省行政执法领域，负责执法系统设计、实施交付与日常运维，服务省—市—县多级执法单位。'
+    },
+    {
+      date: '2022-2026.01',
       title: '独立工作室 · 主理人',
       sub: '视觉设计 / 前端开发',
       desc: '为 20+ 品牌搭建像素风视觉系统与互动官网，从概念、插画到上线一把抓。'
@@ -1622,12 +1701,6 @@
       title: '像素实验室 · 资深设计师',
       sub: '交互设计 / 动效',
       desc: '主导 3 款独立游戏的 UI 与动效，累计下载突破 50 万，拿过两个小奖。'
-    },
-    {
-      date: '2017-2019',
-      title: '北岸科技 · 前端工程师',
-      sub: 'Web 前端 / 设计系统',
-      desc: '维护组件库与设计系统，把设计稿还原度一路推进到像素级。'
     }
   ];
 
@@ -1669,6 +1742,7 @@
     'Figma',
     'Photoshop',
     'Illustrator',
+    'Blender',
     'HTML / CSS',
     'JavaScript',
     '动效设计',
@@ -1826,6 +1900,16 @@
       clear: 8
     },
     {
+      icon: 'factory',
+      color: C.red,
+      name: '工厂官网设计',
+      tag: 'FACTORY SITE / WEB',
+      desc: '包装工厂整站设计：从品牌调性、产品线展示到响应式前端实现。',
+      clear: 9,
+      href: 'https://github.com/jibai33/boguan-packaging',
+      srcLabel: '↗ GITHUB'
+    },
+    {
       icon: 'diamond',
       color: C.green,
       name: '8-BIT 品牌手册',
@@ -1837,8 +1921,14 @@
 
   var projHost = document.getElementById('projects');
   PROJECTS.forEach(function (p, i) {
-    var card = document.createElement('div');
-    card.className = 'proj';
+    var card = document.createElement(p.href ? 'a' : 'div');
+    card.className = 'proj' + (p.href ? ' proj-link' : '');
+    if (p.href) {
+      card.href = p.href;
+      card.target = '_blank';
+      card.rel = 'noopener';
+      card.title = p.name + ' · ' + p.href;
+    }
     card.style.animationDelay = 1.2 + i * 0.15 + 's';
 
     var thumb = document.createElement('div');
@@ -1873,6 +1963,14 @@
     card.appendChild(t);
     card.appendChild(tag);
     card.appendChild(d);
+
+    if (p.srcLabel) {
+      var src = document.createElement('div');
+      src.className = 'src';
+      src.textContent = p.srcLabel;
+      card.appendChild(src);
+    }
+
     card.appendChild(label);
     card.appendChild(prog);
     projHost.appendChild(card);
@@ -1983,7 +2081,7 @@
   var lastHover = null;
   document.addEventListener('mouseover', function (e) {
     if (!e.target.closest) return;
-    var el = e.target.closest('.chip, .btn, .now-link');
+    var el = e.target.closest('.chip, .btn, .now-link, .proj-link');
     if (el && el !== lastHover) {
       lastHover = el;
       beep(el.classList.contains('btn') ? 720 : 520, 0.06);
@@ -2055,6 +2153,7 @@
 
   /* ---------- 日记本 ---------- */
   var DKEY = 'linyi_diary_v1';
+  var DTOMB = 'linyi_diary_v1_tomb';
   var MOODS = [
     { id: 'happy', label: '开心', icon: 'mood_happy', color: C.yellow },
     { id: 'calm', label: '平静', icon: 'mood_calm', color: C.blue },
@@ -2077,6 +2176,25 @@
   function persistDiary(list) {
     try { localStorage.setItem(DKEY, JSON.stringify(list)); }
     catch (err) { showToast('SAVE FAILED!'); }
+  }
+  /* 删除墓碑：记录被删条目的 key，避免线上存档把已删日记重新合并回来 */
+  function diaryKey(it) { return it.ts + '|' + it.text; }
+  function loadTomb() {
+    try {
+      var raw = JSON.parse(localStorage.getItem(DTOMB) || '[]');
+      return Array.isArray(raw) ? raw : [];
+    } catch (err) { return []; }
+  }
+  function saveTomb(list) {
+    try { localStorage.setItem(DTOMB, JSON.stringify(list)); }
+    catch (err) {}
+  }
+  function addTomb(key) {
+    var list = loadTomb();
+    if (list.indexOf(key) !== -1) return;
+    list.push(key);
+    if (list.length > 500) list = list.slice(list.length - 500);
+    saveTomb(list);
   }
   function fmtDate(ts) {
     var d = new Date(ts);
@@ -2197,6 +2315,7 @@
       del.textContent = 'DEL';
       del.addEventListener('click', function () {
         if (!window.confirm('删除这条日记？此操作不可恢复。')) return;
+        addTomb(diaryKey(item));
         var rest = loadDiary().filter(function (it) { return it.id !== item.id; });
         persistDiary(rest);
         renderDiary();
@@ -2359,7 +2478,7 @@
       cards + '\n' +
       '  <p class="foot"><span class="y">▶ GAME SAVED</span><br>' + (flt ? '本次导出仅含查询范围内的 ' + sorted.length + ' 条 · 在页面点 IMPORT 即可恢复' : '本文件即完整备份 · 在页面点 IMPORT 选择此文件即可恢复') + '<br>© 张晅晔 · MADE WITH PIXELS &amp; CAFFEINE</p>\n' +
       '</div>\n' +
-      '<script type="application/json" id="diary-data">' + JSON.stringify(list).replace(/</g, '\\u003c').replace(/>/g, '\\u003e') + '<\/script>\n' +
+      '\x3cscript type="application/json" id="diary-data">' + JSON.stringify(list).replace(/</g, '\\u003c').replace(/>/g, '\\u003e') + '\x3c/script>\n' +
       '</body>\n</html>';
   }
   document.getElementById('diaryExport').addEventListener('click', function () {
@@ -2395,7 +2514,7 @@
           incoming = JSON.parse(raw);
         } catch (notJson) {
           /* 像素风 HTML 存档：提取内嵌 JSON */
-          var m = raw.match(/<script type="application\/json" id="diary-data">([\s\S]*?)<\/script>/);
+          var m = raw.match(/\x3cscript type="application\/json" id="diary-data">([\s\S]*?)\x3c\/script>/);
           if (!m) throw new Error('bad');
           incoming = JSON.parse(m[1]);
         }
@@ -2490,6 +2609,137 @@
   }
 
   renderDiary();
+
+  /* ---------- 本地文件 / 线上站点 日记互通 ---------- */
+  var ONLINE_URL = 'https://jibai33.github.io/';
+  var IS_LOCAL = location.protocol === 'file:' ||
+    location.hostname === 'localhost' ||
+    location.hostname === '127.0.0.1';
+
+  function b64decode(b64) {
+    var bin = atob(b64);
+    var bytes = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new TextDecoder().decode(bytes);
+  }
+
+  /* 合并线上 diary.json：按 ts|text 去重，跳过墓碑，校验收到的字段，结果按时间倒序 */
+  function mergeRemoteEntries(localList, incoming, tombList) {
+    var skip = {}, seen = {}, added = 0;
+    (tombList || []).forEach(function (k) { skip[k] = 1; });
+    var list = localList.slice();
+    localList.forEach(function (it) { seen[diaryKey(it)] = 1; });
+    (incoming || []).forEach(function (it) {
+      if (!it || typeof it.text !== 'string' || typeof it.ts !== 'number') return;
+      var key = diaryKey(it);
+      if (seen[key] || skip[key]) return;
+      seen[key] = 1;
+      list.push({
+        id: typeof it.id === 'string' && it.id ? it.id : 'rem-' + it.ts + '-' + Math.random().toString(36).slice(2, 7),
+        ts: it.ts,
+        mood: MOODS.some(function (m) { return m.id === it.mood; }) ? it.mood : 'calm',
+        text: it.text.slice(0, 500)
+      });
+      added++;
+    });
+    list.sort(function (a, b) { return b.ts - a.ts; });
+    return { list: list, added: added };
+  }
+
+  /* ---------- 线上存档对接（仓库根 diary.json） ---------- */
+  var DIARY_JSON_URL = (IS_LOCAL ? ONLINE_URL : './') + 'diary.json';
+
+  function publishDiary() {
+    var list = loadDiary().slice().sort(function (a, b) { return b.ts - a.ts; });
+    if (!list.length) { showToast('NOTHING TO PUBLISH'); return; }
+    var blob = new Blob([JSON.stringify(list, null, 2)], { type: 'application/json;charset=utf-8' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'diary.json';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
+    showToast('diary.json 已下载 ×' + list.length + ' · 提交到仓库后全网同步');
+    beep(880, 0.08);
+  }
+
+  function syncFromRemote() {
+    if (!window.fetch) return;
+    fetch(DIARY_JSON_URL + '?t=' + Date.now(), { cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (data) {
+        if (!Array.isArray(data) || !data.length) return;
+        var merged = mergeRemoteEntries(loadDiary(), data, loadTomb());
+        if (!merged.added) return;
+        persistDiary(merged.list);
+        renderDiary();
+        showToast('SYNC +' + merged.added);
+      })
+      .catch(function () { /* 离线 / 无存档时静默 */ });
+  }
+
+  function importFromHash() {
+    var m = /^#import=([A-Za-z0-9+/=]+)$/.exec(location.hash);
+    if (!m) return;
+    var clean = location.pathname + location.search;
+    try {
+      var parsed = JSON.parse(b64decode(m[1]));
+      if (!Array.isArray(parsed)) throw new Error('bad payload');
+      var merged = mergeRemoteEntries(loadDiary(), parsed, loadTomb());
+      if (merged.added > 0) {
+        persistDiary(merged.list);
+        renderDiary();
+      }
+      history.replaceState(null, '', clean);
+      showToast(merged.added > 0 ? '已导入 ' + merged.added + ' 条本地日记' : '没有新日记可导入');
+    } catch (err) {
+      history.replaceState(null, '', clean);
+      showToast('导入失败：数据格式不正确');
+    }
+  }
+
+  function showLocalNotice() {
+    if (!IS_LOCAL) return;
+    var localCount = loadDiary().length;
+
+    var bar = document.createElement('div');
+    bar.className = 'local-notice';
+    bar.setAttribute('role', 'note');
+
+    var txt = document.createElement('div');
+    txt.className = 'ln-txt';
+    var tag = document.createElement('b');
+    tag.textContent = '本地模式';
+    txt.appendChild(tag);
+    txt.appendChild(document.createTextNode(
+      '本地与线上共用仓库里的 diary.json 存档：打开时会自动拉取合并，本地新写的日记点 PUBLISH 下载后提交即可上线。当前本地有 ' + localCount + ' 条。'
+    ));
+
+    var acts = document.createElement('div');
+    acts.className = 'ln-acts';
+
+    var go = document.createElement('button');
+    go.type = 'button';
+    go.className = 'mini-btn';
+    go.textContent = '前往线上站点';
+    go.addEventListener('click', function () {
+      location.href = ONLINE_URL;
+    });
+    acts.appendChild(go);
+
+    bar.appendChild(txt);
+    bar.appendChild(acts);
+    document.body.appendChild(bar);
+    document.body.classList.add('has-local-notice');
+  }
+
+  var publishBtn = document.getElementById('diaryPublish');
+  if (publishBtn) publishBtn.addEventListener('click', publishDiary);
+
+  importFromHash();
+  showLocalNotice();
+  syncFromRemote();
 
   /* ---------- 开机加载 ---------- */
   var loader = document.getElementById('loader');

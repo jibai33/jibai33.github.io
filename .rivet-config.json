@@ -1,0 +1,5 @@
+{
+  "verify": {
+    "test": "node tests/diary-sync.test.mjs"
+  }
+}

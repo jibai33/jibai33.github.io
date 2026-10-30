@@ -1,0 +1,8 @@
+{
+  "name": "jibai33-homepage",
+  "private": true,
+  "description": "像素风个人主页（单文件静态站点，无构建步骤）",
+  "scripts": {
+    "test": "node --test tests/"
+  }
+}
