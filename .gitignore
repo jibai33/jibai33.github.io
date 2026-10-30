@@ -1,0 +1,11 @@
+# macOS 元数据
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# 天枢运行时（本地会话库与记忆索引，不外传）
+.rivet/
+
+# WorkBuddy 本地文件
+.workbuddy/
+.wbapp_*.genie

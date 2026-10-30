@@ -1,0 +1,2180 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>林一 · PLAYER 1</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%231a1c2c'/%3E%3Crect x='4' y='2' width='8' height='10' fill='%23f9d949'/%3E%3Crect x='6' y='4' width='4' height='4' fill='%231a1c2c'/%3E%3C/svg%3E" />
+<link rel="stylesheet" href="assets/fonts/fusion/font.css" />
+<style>
+  @font-face {
+    font-family: 'PressStart';
+    src: url('assets/fonts/press-start-2p.woff2') format('woff2');
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+  }
+  @font-face {
+    font-family: 'VT323';
+    src: url('assets/fonts/vt323.woff2') format('woff2');
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+  }
+
+  :root {
+    --bg: #1a1c2c;
+    --bg-deep: #14162a;
+    --panel: #20233a;
+    --panel-2: #272b46;
+    --white: #ffffff;
+    --ink: #0b0c14;
+    --yellow: #f9d949;
+    --yellow-soft: #ffeaa0;
+    --red: #e5474c;
+    --green: #3ddc84;
+    --blue: #4fa9f0;
+    --muted: #8b91ad;
+    --line: rgba(255, 255, 255, 0.16);
+    --px: 'PressStart', 'FusionPixel', 'PingFang SC', monospace;
+    --body: 'FusionPixel', 'VT323', 'PingFang SC', 'Hiragino Sans GB', monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body { height: 100%; }
+
+  body {
+    background-color: var(--bg);
+    background-image:
+      linear-gradient(rgba(255, 255, 255, 0.028) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.028) 1px, transparent 1px);
+    background-size: 32px 32px, 32px 32px;
+    color: #e9e9f2;
+    font-family: var(--body);
+    font-size: 16px;
+    line-height: 1.7;
+    overflow-x: hidden;
+    -webkit-font-smoothing: none;
+    font-smooth: never;
+    text-rendering: geometricPrecision;
+  }
+
+  /* ---------- 背景层：星星 + 像素雨 ---------- */
+  .bg-layer {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    overflow: hidden;
+    z-index: 0;
+  }
+
+  .star {
+    position: absolute;
+    width: 3px;
+    height: 3px;
+    background: var(--yellow);
+    animation: twinkle 3s steps(1, end) infinite;
+  }
+  .star.big { width: 5px; height: 5px; }
+  .star.blue { background: var(--blue); }
+
+  @keyframes twinkle {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.12; }
+  }
+
+  .drop {
+    position: absolute;
+    top: -40px;
+    animation-name: fall;
+    animation-timing-function: steps(24, end);
+    animation-iteration-count: infinite;
+    opacity: 0.55;
+  }
+
+  @keyframes fall {
+    0% { transform: translateY(-40px); }
+    100% { transform: translateY(calc(100vh + 60px)); }
+  }
+
+  /* ---------- 舞台与卡片 ---------- */
+  .stage {
+    position: relative;
+    z-index: 1;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 56px 22px 40px;
+  }
+
+  .card {
+    position: relative;
+    width: min(1120px, 100%);
+    background: var(--panel);
+    border: 4px solid var(--white);
+    box-shadow:
+      6px 6px 0 #000,
+      12px 12px 0 rgba(0, 0, 0, 0.55);
+    animation: floatCard 2.6s steps(4, end) infinite alternate;
+  }
+
+  @keyframes floatCard {
+    from { transform: translateY(0); }
+    to { transform: translateY(-8px); }
+  }
+
+  /* 四角像素装饰 */
+  .corner {
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    background: var(--yellow);
+  }
+  .corner.tl { top: -12px; left: -12px; }
+  .corner.tr { top: -12px; right: -12px; background: var(--red); }
+  .corner.bl { bottom: -12px; left: -12px; background: var(--blue); }
+  .corner.br { bottom: -12px; right: -12px; background: var(--green); }
+
+  /* 扫描线 + 光扫 */
+  .scanlines,
+  .sweep {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    overflow: hidden;
+  }
+  .scanlines {
+    background-image: repeating-linear-gradient(
+      to bottom,
+      rgba(0, 0, 0, 0.22) 0px,
+      rgba(0, 0, 0, 0.22) 1px,
+      transparent 1px,
+      transparent 4px
+    );
+    animation: scan 7s linear infinite;
+    z-index: 5;
+  }
+  @keyframes scan {
+    from { background-position: 0 0; }
+    to { background-position: 0 320px; }
+  }
+  .sweep::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 90px;
+    background: rgba(140, 200, 255, 0.045);
+    animation: sweepMove 6s steps(30, end) infinite;
+  }
+  @keyframes sweepMove {
+    from { top: -120px; }
+    to { top: 108%; }
+  }
+
+  .card-inner {
+    position: relative;
+    display: grid;
+    grid-template-columns: 340px 1fr;
+    padding: 30px 32px;
+    z-index: 2;
+  }
+
+  /* ---------- 左侧：个人信息 ---------- */
+  .profile {
+    position: relative;
+    padding-right: 32px;
+    text-align: center;
+  }
+  .profile::after {
+    content: '';
+    position: absolute;
+    top: 4px;
+    bottom: 4px;
+    right: 0;
+    width: 4px;
+    background-image: repeating-linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 0.22) 0px,
+      rgba(255, 255, 255, 0.22) 8px,
+      transparent 8px,
+      transparent 16px
+    );
+    background-size: 4px 16px;
+    animation: dividerRun 1.6s steps(2, end) infinite;
+  }
+  @keyframes dividerRun {
+    from { background-position: 0 0; }
+    to { background-position: 0 16px; }
+  }
+
+  .avatar-frame {
+    position: relative;
+    width: 130px;
+    height: 130px;
+    margin: 2px auto 0;
+    background: var(--yellow);
+    border: 4px solid var(--white);
+    box-shadow: 6px 6px 0 #000;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+  }
+  .avatar-frame::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: linear-gradient(rgba(0, 0, 0, 0.07) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0, 0, 0, 0.07) 1px, transparent 1px);
+    background-size: 11px 11px;
+    pointer-events: none;
+  }
+
+  .pxgrid {
+    display: grid;
+    gap: 0;
+    animation: avatarIn 0.5s steps(4, end) both;
+  }
+  .pxgrid i { display: block; }
+
+  @keyframes avatarIn {
+    from { opacity: 0; transform: scale(0.86); }
+    to { opacity: 1; transform: scale(1); }
+  }
+
+  .name {
+    margin-top: 22px;
+    font-family: var(--px);
+    font-size: 44px;
+    line-height: 1.25;
+    letter-spacing: 2px;
+    color: var(--yellow);
+    text-shadow: 3px 3px 0 var(--red), 6px 6px 0 #000;
+    animation: nameGlow 2.8s steps(3, end) infinite;
+  }
+  @keyframes nameGlow {
+    0%, 100% {
+      text-shadow: 3px 3px 0 var(--red), 6px 6px 0 #000, 0 0 0 rgba(249, 217, 73, 0);
+    }
+    50% {
+      text-shadow: 3px 3px 0 var(--red), 6px 6px 0 #000, 0 0 16px rgba(249, 217, 73, 0.5);
+    }
+  }
+
+  .badge {
+    display: inline-block;
+    margin-top: 16px;
+    padding: 9px 12px 8px;
+    background: var(--blue);
+    color: #fff;
+    border: 3px solid var(--white);
+    box-shadow: 4px 4px 0 #000;
+    font-size: 13px;
+    line-height: 1;
+    letter-spacing: 0.5px;
+    animation: badgePulse 1.8s steps(2, end) infinite;
+  }
+  .badge .en {
+    font-family: var(--px);
+    font-size: 9px;
+    vertical-align: 1px;
+  }
+  @keyframes badgePulse {
+    0%, 100% { box-shadow: 4px 4px 0 #000, 0 0 0 0 rgba(79, 169, 240, 0); }
+    50% { box-shadow: 4px 4px 0 #000, 0 0 0 4px rgba(79, 169, 240, 0.35); }
+  }
+
+  .tagline {
+    margin: 20px auto 0;
+    max-width: 250px;
+    min-height: 84px;
+    font-size: 15px;
+    line-height: 1.85;
+    color: #c8cce0;
+    text-align: left;
+  }
+  .caret {
+    display: inline-block;
+    width: 8px;
+    height: 15px;
+    margin-left: 2px;
+    background: var(--yellow);
+    vertical-align: -2px;
+    animation: blink 0.9s steps(1, end) infinite;
+  }
+  @keyframes blink {
+    0%, 49% { opacity: 1; }
+    50%, 100% { opacity: 0; }
+  }
+
+  .meta {
+    list-style: none;
+    margin: 22px auto 0;
+    max-width: 252px;
+    text-align: left;
+  }
+  .meta li {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 7px 2px 8px;
+    font-size: 14px;
+    color: #d5d8e6;
+    border-bottom: 3px dotted rgba(255, 255, 255, 0.16);
+    animation: slideIn 0.45s steps(4, end) both;
+  }
+  .meta li:last-child { border-bottom: 0; }
+  .meta .k {
+    margin-left: auto;
+    font-size: 12px;
+    color: var(--muted);
+    letter-spacing: 0.5px;
+  }
+  .meta .icon { display: flex; flex: 0 0 auto; }
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateX(-14px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  /* 经验条 */
+  .stats {
+    margin: 24px auto 0;
+    max-width: 252px;
+    text-align: left;
+  }
+  .stats-label {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 9px;
+    font-family: var(--px);
+    font-size: 8px;
+    letter-spacing: 1px;
+    color: var(--muted);
+  }
+  .exp {
+    display: grid;
+    grid-template-columns: repeat(10, 1fr);
+    gap: 4px;
+  }
+  .exp i {
+    height: 13px;
+    background: rgba(255, 255, 255, 0.07);
+    border: 2px solid rgba(255, 255, 255, 0.14);
+  }
+  .exp i.on {
+    background: var(--yellow);
+    border-color: #000;
+    box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.7);
+    animation: expFill 0.3s steps(2, end) both;
+  }
+  @keyframes expFill {
+    from { opacity: 0; transform: scaleY(0.35); }
+    to { opacity: 1; transform: scaleY(1); }
+  }
+
+  /* ---------- 右侧：内容区 ---------- */
+  .content { padding-left: 34px; }
+
+  .module + .module { margin-top: 28px; }
+
+  .mod-title {
+    position: relative;
+    display: inline-block;
+    overflow: hidden;
+    padding: 9px 13px 8px;
+    border: 3px solid var(--white);
+    box-shadow: 4px 4px 0 #000;
+    font-family: var(--px);
+    font-size: 12px;
+    line-height: 1.6;
+    letter-spacing: 0.5px;
+    color: #fff;
+  }
+  .mod-title.red { background: var(--red); }
+  .mod-title.green { background: #22a45d; }
+  .mod-title.blue { background: #2f7fc4; }
+
+  .mod-title::after {
+    content: '';
+    position: absolute;
+    top: -10%;
+    bottom: -10%;
+    left: 0;
+    width: 9px;
+    background: rgba(255, 255, 255, 0.55);
+    transform: translateX(-24px) skewX(-18deg);
+    animation: shine 4.2s steps(26, end) infinite;
+  }
+  @keyframes shine {
+    0% { transform: translateX(-24px) skewX(-18deg); }
+    55%, 100% { transform: translateX(280px) skewX(-18deg); }
+  }
+
+  .logs { margin-top: 18px; }
+  .log-item {
+    display: grid;
+    grid-template-columns: 108px 1fr;
+    gap: 16px;
+    padding: 14px 0;
+    animation: fadeUp 0.5s steps(4, end) both;
+  }
+  .log-item + .log-item {
+    border-top: 3px dotted rgba(255, 255, 255, 0.16);
+  }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .date-tag {
+    align-self: start;
+    background: var(--green);
+    color: var(--ink);
+    border: 3px solid #0e2b1c;
+    box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.65);
+    font-family: var(--px);
+    font-size: 9px;
+    line-height: 1.8;
+    letter-spacing: 0.5px;
+    text-align: center;
+    padding: 5px 2px;
+    white-space: nowrap;
+  }
+
+  .log-body .t {
+    font-size: 17px;
+    color: var(--yellow);
+    letter-spacing: 1px;
+    line-height: 1.5;
+  }
+  .log-body .s {
+    margin-top: 3px;
+    font-size: 13px;
+    color: var(--blue);
+    letter-spacing: 0.5px;
+  }
+  .log-body .d {
+    margin-top: 7px;
+    font-size: 14px;
+    line-height: 1.75;
+    color: #a8adc4;
+  }
+
+  /* 技能 */
+  .skills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 18px;
+  }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 11px 8px;
+    background: var(--panel-2);
+    border: 3px solid var(--white);
+    box-shadow: 3px 3px 0 #000;
+    color: #e9e9f2;
+    font-size: 14px;
+    letter-spacing: 0.5px;
+    cursor: default;
+    animation: popIn 0.4s steps(4, end) both;
+    transition: background 0.12s steps(2, end), transform 0.12s steps(2, end),
+      box-shadow 0.12s steps(2, end);
+  }
+  .chip .icon { display: flex; }
+  .chip:hover {
+    background: var(--blue);
+    color: #fff;
+    transform: translate(-1px, -4px);
+    box-shadow: 4px 7px 0 #000;
+  }
+  @keyframes popIn {
+    0% { opacity: 0; transform: translateY(10px) scale(0.9); }
+    70% { opacity: 1; transform: translateY(-2px) scale(1.03); }
+    100% { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  /* 社交按钮 */
+  .socials {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 18px;
+  }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    padding: 10px 14px 9px;
+    background: var(--yellow);
+    color: var(--ink);
+    border: 3px solid var(--white);
+    box-shadow: 4px 4px 0 #000;
+    font-family: var(--px);
+    font-size: 10px;
+    letter-spacing: 0.5px;
+    text-decoration: none;
+    animation: btnFloat 2.2s steps(2, end) infinite alternate;
+  }
+  .btn .icon { display: flex; animation: iconBob 1.4s steps(2, end) infinite alternate; }
+  .btn:hover {
+    background: #ffe469;
+    transform: translateY(-4px);
+    box-shadow: 4px 8px 0 #000, 0 0 0 4px rgba(249, 217, 73, 0.3), 0 0 18px rgba(249, 217, 73, 0.45);
+  }
+  @keyframes btnFloat {
+    from { transform: translateY(0); }
+    to { transform: translateY(-4px); }
+  }
+  @keyframes iconBob {
+    from { transform: translateY(0); }
+    to { transform: translateY(-2px); }
+  }
+
+  /* ---------- 页脚 ---------- */
+  .footer {
+    margin-top: 34px;
+    text-align: center;
+    font-family: var(--px);
+    font-size: 9px;
+    line-height: 2.2;
+    color: #6f7691;
+    letter-spacing: 1px;
+  }
+  .footer .press {
+    display: inline-block;
+    margin-bottom: 8px;
+    color: var(--yellow);
+    animation: blink 1.1s steps(1, end) infinite;
+  }
+
+  /* ---------- 开机加载 ---------- */
+  .loader {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    background: var(--bg);
+    display: grid;
+    place-content: center;
+    justify-items: center;
+    gap: 16px;
+  }
+  .loader.done { display: none; }
+  .loader-title {
+    font-family: var(--px);
+    font-size: 12px;
+    letter-spacing: 2px;
+    color: var(--yellow);
+    animation: blink 1s steps(1, end) infinite;
+  }
+  .loader-bar {
+    display: flex;
+    gap: 3px;
+    width: 280px;
+    max-width: 70vw;
+    height: 20px;
+    padding: 3px;
+    border: 3px solid var(--white);
+    box-shadow: 4px 4px 0 #000;
+    background: rgba(0, 0, 0, 0.3);
+  }
+  .loader-bar i { flex: 1; background: rgba(255, 255, 255, 0.08); }
+  .loader-bar i.on { background: var(--yellow); }
+  .loader-pct {
+    font-family: var(--px);
+    font-size: 8px;
+    letter-spacing: 1px;
+    color: var(--muted);
+  }
+
+  /* ---------- 顶部 HUD ---------- */
+  .hud {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px 26px;
+    width: min(1120px, 100%);
+    margin-bottom: 18px;
+    padding: 9px 14px;
+    border: 3px solid rgba(255, 255, 255, 0.3);
+    background: rgba(0, 0, 0, 0.28);
+    box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.5);
+    font-family: var(--px);
+    font-size: 8px;
+    letter-spacing: 1px;
+    color: #aeb4cc;
+  }
+  .hud b { font-weight: 400; color: var(--yellow); }
+  .hud .green { color: var(--green); }
+  .hud .hud-item { display: inline-flex; align-items: center; gap: 5px; }
+  .hud button {
+    font: inherit;
+    letter-spacing: inherit;
+    color: inherit;
+    background: none;
+    border: 0;
+    cursor: pointer;
+  }
+  .hud button:hover { color: var(--yellow); }
+
+  /* ---------- 目前状态 ---------- */
+  .now {
+    margin: 22px auto 0;
+    max-width: 252px;
+    text-align: left;
+  }
+  .now-title {
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 3px dotted rgba(255, 255, 255, 0.16);
+    font-family: var(--px);
+    font-size: 9px;
+    letter-spacing: 1px;
+    color: var(--muted);
+  }
+  .now ul { list-style: none; }
+  .now li {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 4px 0;
+    font-size: 13px;
+    color: #c8cce0;
+  }
+  .now .k {
+    flex: 0 0 48px;
+    font-family: var(--px);
+    font-size: 8px;
+    letter-spacing: 0.5px;
+    color: var(--blue);
+  }
+
+  /* ---------- 日记本 ---------- */
+  .diary-module {
+    grid-column: 1 / -1;
+    margin-top: 30px;
+    padding-top: 26px;
+    border-top: 4px dotted rgba(255, 255, 255, 0.2);
+  }
+  .diary-composer {
+    margin-top: 18px;
+    padding: 12px;
+    background: var(--panel-2);
+    border: 3px solid var(--white);
+    box-shadow: 4px 4px 0 #000;
+  }
+  .diary-composer textarea {
+    display: block;
+    width: 100%;
+    min-height: 92px;
+    padding: 8px 10px;
+    background: #161930;
+    border: 3px solid rgba(255, 255, 255, 0.25);
+    color: #e9e9f2;
+    font-family: var(--body);
+    font-size: 14px;
+    line-height: 1.7;
+    resize: vertical;
+    outline: none;
+  }
+  .diary-composer textarea:focus { border-color: var(--yellow); }
+  .diary-composer textarea.err {
+    border-color: var(--red);
+    animation: shake 0.4s steps(4, end) 1;
+  }
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-4px); }
+    75% { transform: translateX(4px); }
+  }
+
+  .composer-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .moods { display: flex; gap: 6px; flex-wrap: wrap; }
+  .mood-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 5px 7px 4px;
+    background: rgba(0, 0, 0, 0.2);
+    border: 3px solid rgba(255, 255, 255, 0.22);
+    color: #c8cce0;
+    font-family: var(--body);
+    font-size: 11px;
+    cursor: pointer;
+  }
+  .mood-btn .icon { display: flex; }
+  .mood-btn:hover { border-color: var(--white); }
+  .mood-btn.sel {
+    border-color: var(--white);
+    background: #161930;
+    box-shadow: 3px 3px 0 #000;
+    color: var(--yellow);
+  }
+  .composer-meta {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .char-count {
+    font-family: var(--px);
+    font-size: 7px;
+    letter-spacing: 0.5px;
+    color: var(--muted);
+  }
+  .save-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 8px 12px 7px;
+    background: var(--yellow);
+    color: var(--ink);
+    border: 3px solid var(--white);
+    box-shadow: 3px 3px 0 #000;
+    font-family: var(--px);
+    font-size: 9px;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+  }
+  .save-btn:hover {
+    background: #ffe469;
+    transform: translate(-1px, -2px);
+    box-shadow: 4px 5px 0 #000;
+  }
+  .save-btn:active { transform: translate(1px, 1px); box-shadow: 2px 2px 0 #000; }
+
+  .diary-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 10px;
+    margin-top: 12px;
+  }
+  .diary-item {
+    padding: 10px 12px;
+    background: rgba(0, 0, 0, 0.2);
+    border: 3px solid rgba(255, 255, 255, 0.18);
+    animation: popIn 0.35s steps(4, end) both;
+  }
+  .diary-item:hover { border-color: rgba(255, 255, 255, 0.4); }
+  .diary-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .diary-date {
+    padding: 3px 7px 2px;
+    background: var(--green);
+    border: 2px solid #0e2b1c;
+    box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.6);
+    font-family: var(--px);
+    font-size: 7px;
+    letter-spacing: 0.5px;
+    color: var(--ink);
+    white-space: nowrap;
+  }
+  .diary-mood { display: flex; align-items: center; }
+  .diary-del {
+    margin-left: auto;
+    padding: 2px 7px;
+    background: none;
+    border: 2px solid rgba(229, 71, 76, 0.55);
+    color: var(--red);
+    font-family: var(--px);
+    font-size: 8px;
+    cursor: pointer;
+  }
+  .diary-del:hover { background: var(--red); color: #fff; border-color: var(--red); }
+  .diary-text {
+    margin-top: 8px;
+    font-size: 14px;
+    line-height: 1.75;
+    color: #d5d8e6;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .diary-empty {
+    grid-column: 1 / -1;
+    margin-top: 0;
+    padding: 14px 12px;
+    border: 3px dashed rgba(255, 255, 255, 0.25);
+    text-align: center;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .diary-foot {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .mini-btn {
+    padding: 5px 9px 4px;
+    background: rgba(0, 0, 0, 0.25);
+    border: 3px solid rgba(255, 255, 255, 0.3);
+    color: #aeb4cc;
+    font-family: var(--px);
+    font-size: 7px;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+  }
+  .mini-btn:hover { border-color: var(--white); color: var(--yellow); }
+  .diary-hint {
+    margin-left: auto;
+    font-family: var(--body);
+    font-size: 11px;
+    letter-spacing: 0.5px;
+    color: #5d6480;
+  }
+
+  .toast {
+    position: fixed;
+    right: 18px;
+    bottom: 18px;
+    z-index: 40;
+    padding: 9px 12px 8px;
+    background: var(--green);
+    border: 3px solid var(--white);
+    box-shadow: 4px 4px 0 #000;
+    color: var(--ink);
+    font-family: var(--px);
+    font-size: 9px;
+    letter-spacing: 0.5px;
+    animation: popIn 0.3s steps(4, end) both;
+  }
+
+  /* ---------- NPC 对话框 ---------- */  .dlg {
+    margin: 24px auto 0;
+    max-width: 252px;
+    text-align: left;
+    border: 3px solid var(--white);
+    background: var(--panel-2);
+    box-shadow: 4px 4px 0 #000;
+    padding: 10px 12px 12px;
+  }
+  .dlg-name {
+    display: inline-block;
+    margin-bottom: 9px;
+    padding: 3px 6px 2px;
+    background: var(--blue);
+    border: 2px solid var(--white);
+    font-family: var(--px);
+    font-size: 7px;
+    letter-spacing: 0.5px;
+    color: #fff;
+  }
+  .dlg p {
+    min-height: 70px;
+    font-size: 13px;
+    line-height: 1.85;
+    color: #d5d8e6;
+  }
+
+  /* ---------- 作品仓库 ---------- */
+  .mod-title.gold { background: var(--yellow); color: var(--ink); }
+
+  .projects {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+    margin-top: 18px;
+  }
+  .proj {
+    padding: 12px;
+    background: var(--panel-2);
+    border: 3px solid var(--white);
+    box-shadow: 3px 3px 0 #000;
+    animation: fadeUp 0.5s steps(4, end) both;
+  }
+  .proj:hover {
+    transform: translate(-1px, -3px);
+    box-shadow: 4px 6px 0 #000;
+  }
+  .proj-thumb {
+    display: grid;
+    place-items: center;
+    height: 76px;
+    margin-bottom: 10px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 2px solid rgba(255, 255, 255, 0.12);
+  }
+  .proj .t {
+    font-size: 15px;
+    letter-spacing: 1px;
+    color: var(--yellow);
+  }
+  .proj .tag {
+    margin-top: 4px;
+    font-family: var(--px);
+    font-size: 8px;
+    letter-spacing: 0.5px;
+    color: var(--blue);
+  }
+  .proj .d {
+    margin-top: 7px;
+    font-size: 12.5px;
+    line-height: 1.65;
+    color: #a8adc4;
+  }
+  .prog-label {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 10px;
+    font-family: var(--px);
+    font-size: 7px;
+    letter-spacing: 0.5px;
+    color: var(--muted);
+  }
+  .prog {
+    display: flex;
+    gap: 3px;
+    margin-top: 6px;
+  }
+  .prog i { flex: 1; height: 8px; background: rgba(255, 255, 255, 0.08); }
+  .prog i.on { background: var(--green); }
+
+  /* ---------- 成就墙 ---------- */
+  .achv {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 18px;
+  }
+  .achv .cell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 7px;
+    min-width: 88px;
+    padding: 11px 8px 9px;
+    background: rgba(0, 0, 0, 0.2);
+    border: 3px solid rgba(255, 255, 255, 0.22);
+    cursor: help;
+    animation: popIn 0.4s steps(4, end) both;
+  }
+  .achv .cell:hover {
+    border-color: var(--white);
+    transform: translateY(-3px);
+    box-shadow: 0 0 0 3px rgba(249, 217, 73, 0.28), 0 0 14px rgba(249, 217, 73, 0.35);
+  }
+  .achv .lb {
+    font-family: var(--px);
+    font-size: 7px;
+    letter-spacing: 0.5px;
+    color: var(--muted);
+  }
+
+  /* ---------- 彩蛋 ---------- */
+  .oneup {
+    position: fixed;
+    inset: 0;
+    z-index: 70;
+    display: grid;
+    place-items: center;
+    pointer-events: none;
+    font-family: var(--px);
+    font-size: 56px;
+    color: var(--yellow);
+    text-shadow: 4px 4px 0 var(--red), 8px 8px 0 #000;
+    animation: oneupPop 2.2s steps(6, end) both;
+  }
+  @keyframes oneupPop {
+    0% { opacity: 0; transform: scale(0.5); }
+    15% { opacity: 1; transform: scale(1.12); }
+    30% { transform: scale(1); }
+    80% { opacity: 1; }
+    100% { opacity: 0; }
+  }
+  .confetti {
+    position: fixed;
+    top: -16px;
+    z-index: 65;
+    pointer-events: none;
+    animation: fall 1.8s linear forwards;
+  }
+
+  /* ---------- 底部城市剪影 ---------- */
+  .skyline {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 170px;
+    overflow: hidden;
+    z-index: 0;
+    pointer-events: none;
+  }
+  .skyline i {
+    position: absolute;
+    bottom: 0;
+    background: #14162a;
+    border-top: 3px solid #232743;
+  }
+  .skyline b {
+    position: absolute;
+    width: 4px;
+    height: 4px;
+    background: var(--yellow);
+  }
+
+  /* ---------- 响应式 ---------- */
+  @media (max-height: 900px) and (min-width: 941px) {
+    .stage { padding: 26px 22px 22px; justify-content: flex-start; }
+    .card-inner { padding: 24px 28px; }
+    .tagline { min-height: 66px; margin-top: 16px; }
+    .meta { margin-top: 16px; }
+    .meta li { padding: 5px 2px 6px; }
+    .stats { margin-top: 16px; }
+    .module + .module { margin-top: 22px; }
+    .logs { margin-top: 14px; }
+    .log-item { padding: 11px 0; }
+    .skills, .socials { margin-top: 14px; }
+    .footer { margin-top: 22px; }
+  }
+
+  @media (max-width: 940px) {
+    .card-inner {
+      grid-template-columns: 1fr;
+      padding: 26px 22px;
+    }
+    .profile {
+      padding-right: 0;
+      padding-bottom: 26px;
+      border-bottom: 4px dotted rgba(255, 255, 255, 0.2);
+    }
+    .profile::after { display: none; }
+    .content { padding-left: 0; padding-top: 26px; }
+    .name { font-size: 36px; }
+    .log-item { grid-template-columns: 96px 1fr; gap: 12px; }
+    .tagline { min-height: 0; text-align: center; }
+    .meta { max-width: 300px; }
+  }
+
+  @media (max-width: 520px) {
+    .stage { padding: 26px 12px 30px; }
+    .hud { gap: 8px 14px; padding: 8px 10px; font-size: 7px; }
+    .card { border-width: 3px; box-shadow: 4px 4px 0 #000, 8px 8px 0 rgba(0, 0, 0, 0.55); }
+    .log-item { grid-template-columns: 1fr; gap: 8px; }
+    .date-tag { justify-self: start; padding: 4px 8px; }
+    .btn { font-size: 9px; padding: 8px 10px; }
+    .dlg p { min-height: 0; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * {
+      animation-duration: 0.001s !important;
+      animation-delay: 0s !important;
+      animation-iteration-count: 1 !important;
+      transition: none !important;
+    }
+  }
+</style>
+</head>
+<body>
+
+<div class="loader" id="loader">
+  <div class="loader-title">NOW LOADING</div>
+  <div class="loader-bar" id="loaderBar">
+    <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+  </div>
+  <div class="loader-pct" id="loaderPct">0%</div>
+</div>
+
+<div class="bg-layer" id="bgLayer" aria-hidden="true"></div>
+<div class="skyline" id="skyline" aria-hidden="true"></div>
+
+<main class="stage">
+  <div class="hud" aria-label="游戏状态栏">
+    <span class="hud-item">1UP <b>林一</b></span>
+    <span class="hud-item">HI-SCORE <b>999999</b></span>
+    <span class="hud-item green">● OPEN FOR QUESTS</span>
+    <button class="hud-item" id="soundBtn" type="button">♪ SOUND: OFF</button>
+    <span class="hud-item" id="coinEl">COIN ×03</span>
+    <span class="hud-item" id="clock">TIME 00:00:00</span>
+  </div>
+
+  <section class="card">
+    <span class="corner tl"></span>
+    <span class="corner tr"></span>
+    <span class="corner bl"></span>
+    <span class="corner br"></span>
+    <div class="scanlines" aria-hidden="true"></div>
+    <div class="sweep" aria-hidden="true"></div>
+
+    <div class="card-inner">
+      <!-- 左栏 -->
+      <aside class="profile">
+        <div class="avatar-frame">
+          <div id="avatar"></div>
+        </div>
+
+        <h1 class="name">林一</h1>
+
+        <div class="badge"><span class="en">PLAYER 1</span> · 设计师 / 开发者</div>
+
+        <p class="tagline"><span id="typed"></span><span class="caret"></span></p>
+
+        <ul class="meta" id="meta"></ul>
+
+        <div class="stats">
+          <div class="stats-label"><span>LV.24</span><span>EXP 70 / 100</span></div>
+          <div class="exp" id="exp"></div>
+        </div>
+
+        <div class="now">
+          <div class="now-title">目前状态 / NOW</div>
+          <ul>
+            <li><span class="k">DOING</span><span class="v">像素官网生成器 v2</span></li>
+            <li><span class="k">READ</span><span class="v">《游戏设计梦工厂》</span></li>
+            <li><span class="k">MUSIC</span><span class="v">City Pop 通勤歌单</span></li>
+          </ul>
+        </div>
+
+        <div class="dlg">
+          <span class="dlg-name">NPC · 林一</span>
+          <p id="dlgText"></p>
+        </div>
+      </aside>
+
+      <!-- 右栏 -->
+      <div class="content">
+        <section class="module">
+          <h2 class="mod-title red">任务日志</h2>
+          <div class="logs" id="logs"></div>
+        </section>
+
+        <section class="module">
+          <h2 class="mod-title green">技能装备</h2>
+          <div class="skills" id="skills"></div>
+        </section>
+
+        <section class="module">
+          <h2 class="mod-title blue">联系我</h2>
+          <div class="socials" id="socials"></div>
+        </section>
+
+        <section class="module">
+          <h2 class="mod-title gold">作品仓库</h2>
+          <div class="projects" id="projects"></div>
+        </section>
+
+        <section class="module">
+          <h2 class="mod-title red">成就墙</h2>
+          <div class="achv" id="achv"></div>
+        </section>
+      </div>
+
+      <section class="module diary-module">
+        <h2 class="mod-title green">日记本</h2>
+        <div class="diary-composer">
+          <textarea id="diaryText" maxlength="500" placeholder="今天的感想、吐槽、灵感……都写进来吧 ▸"></textarea>
+          <div class="composer-row">
+            <div class="moods" id="moods"></div>
+            <div class="composer-meta">
+              <span class="char-count" id="charCount">0/500</span>
+              <button class="save-btn" id="diarySave" type="button">▶ SAVE</button>
+            </div>
+          </div>
+        </div>
+        <div class="diary-list" id="diaryList"></div>
+        <div class="diary-foot">
+          <button class="mini-btn" id="diaryMore" type="button">MORE ▼</button>
+          <button class="mini-btn" id="diaryExport" type="button">EXPORT</button>
+          <button class="mini-btn" id="diaryImport" type="button">IMPORT</button>
+          <input type="file" id="diaryFile" accept=".json,application/json" hidden />
+          <span class="diary-hint">⌘/CTRL+ENTER 保存 · 数据仅存本浏览器</span>
+        </div>
+      </section>
+    </div>
+  </section>
+
+  <div class="footer">
+    <span class="press">▶ PRESS START TO CONTINUE</span><br />
+    ↑↑↓↓←→←→ B A · 据说有隐藏奖励<br />
+    © 2026 林一 · MADE WITH PIXELS &amp; CAFFEINE · VER 2.0
+  </div>
+</main>
+
+<script>
+(function () {
+  'use strict';
+
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  var C = {
+    yellow: '#f9d949',
+    red: '#e5474c',
+    green: '#3ddc84',
+    blue: '#4fa9f0',
+    ink: '#0b0c14',
+    white: '#ffffff'
+  };
+
+  /* ---------- 像素图标 ---------- */
+  var ICONS = {
+    pin: [
+      '..XXXXX..',
+      '.XX...XX.',
+      'XX.....XX',
+      'XX.....XX',
+      '.XX...XX.',
+      '..XXXXX..',
+      '...XXX...',
+      '....X....',
+      '.........'
+    ],
+    cap: [
+      '.........',
+      '....X....',
+      '..XXXXX..',
+      '.XXXXXXX.',
+      'XXXXXXXXX',
+      '..XXXXX..',
+      '.........',
+      '.X.....X.',
+      '.........'
+    ],
+    mail: [
+      '.........',
+      '.XXXXXXX.',
+      '.X.....X.',
+      '.XX...XX.',
+      '.X.X.X.X.',
+      '.X..X..X.',
+      '.X.....X.',
+      '.XXXXXXX.',
+      '.........'
+    ],
+    heart: [
+      '.........',
+      '.XX...XX.',
+      'XXXXXXXXX',
+      'XXXXXXXXX',
+      '.XXXXXXX.',
+      '..XXXXX..',
+      '...XXX...',
+      '....X....',
+      '.........'
+    ],
+    diamond: [
+      '....X....',
+      '...XXX...',
+      '..XXXXX..',
+      '.XXXXXXX.',
+      'XXXXXXXXX',
+      '.XXXXXXX.',
+      '..XXXXX..',
+      '...XXX...',
+      '....X....'
+    ],
+    code: [
+      '.........',
+      '..X...X..',
+      '.X...X...',
+      'X...X....',
+      '...X.....',
+      'X...X....',
+      '.X...X...',
+      '..X...X..',
+      '.........'
+    ],
+    bolt: [
+      '.....XX..',
+      '....XX...',
+      '...XX....',
+      '..XXXXXX.',
+      '.....XX..',
+      '....XX...',
+      '...XX....',
+      '.........',
+      '.........'
+    ],
+    play: [
+      '.........',
+      '..X......',
+      '..XXX....',
+      '..XXXXX..',
+      '..XXXXXXX',
+      '..XXXXX..',
+      '..XXX....',
+      '..X......',
+      '.........'
+    ],
+    monitor: [
+      '.........',
+      '.XXXXXXX.',
+      '.X.....X.',
+      '.X.....X.',
+      '.X.....X.',
+      '.X.....X.',
+      '.XXXXXXX.',
+      '...XXX...',
+      '..XXXXX..'
+    ],
+    gamepad: [
+      '.........',
+      '.........',
+      '.XXXXXXX.',
+      'XX..X..XX',
+      'XX.XXX.XX',
+      '.XXXXXXX.',
+      '..XX.XX..',
+      '.........',
+      '.........'
+    ],
+    trophy: [
+      '.........',
+      '.XXXXXXX.',
+      'XXXXXXXXX',
+      'XXXXXXXXX',
+      '.XXXXXXX.',
+      '..XXXXX..',
+      '...XXX...',
+      '..XXXXX..',
+      '.XXXXXXX.'
+    ],
+    star: [
+      '....X....',
+      '....X....',
+      '...XXX...',
+      'XXXXXXXXX',
+      '.XXXXXXX.',
+      '..XXXXX..',
+      '..XX.XX..',
+      '.XX...XX.',
+      '.........'
+    ],
+    mood_happy: [
+      '.........',
+      '..XXXXX..',
+      '.X.....X.',
+      'X.X...X.X',
+      'X.......X',
+      'X.X...X.X',
+      'X..XXX..X',
+      '.X.....X.',
+      '..XXXXX..'
+    ],
+    mood_calm: [
+      '.........',
+      '..XXXXX..',
+      '.X.....X.',
+      'X.X...X.X',
+      'X.......X',
+      'X.......X',
+      'X.XXXXX.X',
+      '.X.....X.',
+      '..XXXXX..'
+    ],
+    mood_tired: [
+      '.........',
+      '..XXXXX..',
+      '.X.....X.',
+      'X.XX.XX.X',
+      'X.......X',
+      'X.......X',
+      'X...X...X',
+      '.X.....X.',
+      '..XXXXX..'
+    ],
+    mood_sad: [
+      '.........',
+      '..XXXXX..',
+      '.X.....X.',
+      'X.X...X.X',
+      'X.......X',
+      'X..XXX..X',
+      'X.X...X.X',
+      '.X.....X.',
+      '..XXXXX..'
+    ],
+    avatar: [
+      '.............',
+      '..XXXX.......',
+      '..XXXX.......',
+      '..XXXX.......',
+      '..XXXX.......',
+      '..XXXX.......',
+      '..XXXX.......',
+      '..XXXX.......',
+      '..XXXX.......',
+      '..XXXXXXXXX..',
+      '..XXXXXXXXX..',
+      '.............',
+      '.............'
+    ]
+  };
+
+  function pixelGrid(map, size, color, bg) {
+    var wrap = document.createElement('div');
+    wrap.className = 'pxgrid';
+    wrap.style.gridTemplateColumns = 'repeat(' + map[0].length + ', ' + (size ? size + 'px' : '1fr') + ')';
+    if (bg) wrap.style.background = bg;
+
+    map.forEach(function (row) {
+      for (var i = 0; i < row.length; i++) {
+        var cell = document.createElement('i');
+        if (size) {
+          cell.style.width = size + 'px';
+          cell.style.height = size + 'px';
+        } else {
+          cell.style.aspectRatio = '1 / 1';
+        }
+        if (row[i] !== '.' && row[i] !== ' ') cell.style.background = color;
+        wrap.appendChild(cell);
+      }
+    });
+    return wrap;
+  }
+
+  /* ---------- 头像 ---------- */
+  var avatarHost = document.getElementById('avatar');
+  if (avatarHost) avatarHost.appendChild(pixelGrid(ICONS.avatar, 9, C.ink));
+
+  /* ---------- 元数据 ---------- */
+  var META = [
+    { icon: 'pin', text: '上海 · 中国', k: 'LOC' },
+    { icon: 'cap', text: '视觉传达设计 · 本科', k: 'EDU' },
+    { icon: 'mail', text: 'hi@linyi.design', k: 'MAIL' },
+    { icon: 'heart', text: '像素画 / 独立游戏 / 手冲', k: 'LIKE' }
+  ];
+
+  var metaHost = document.getElementById('meta');
+  META.forEach(function (item, i) {
+    var li = document.createElement('li');
+    li.style.animationDelay = 1.1 + i * 0.14 + 's';
+
+    var ic = document.createElement('span');
+    ic.className = 'icon';
+    ic.appendChild(pixelGrid(ICONS[item.icon], 2, C.yellow));
+
+    var txt = document.createElement('span');
+    txt.textContent = item.text;
+
+    var k = document.createElement('span');
+    k.className = 'k';
+    k.textContent = item.k;
+
+    li.appendChild(ic);
+    li.appendChild(txt);
+    li.appendChild(k);
+    metaHost.appendChild(li);
+  });
+
+  /* ---------- 经验条 ---------- */
+  var expHost = document.getElementById('exp');
+  for (var e = 0; e < 10; e++) {
+    var cell = document.createElement('i');
+    if (e < 7) {
+      cell.className = 'on';
+      cell.style.animationDelay = 1.5 + e * 0.07 + 's';
+    }
+    expHost.appendChild(cell);
+  }
+
+  /* ---------- 任务日志 ---------- */
+  var LOGS = [
+    {
+      date: '2022-2026',
+      title: '独立工作室 · 主理人',
+      sub: '视觉设计 / 前端开发',
+      desc: '为 20+ 品牌搭建像素风视觉系统与互动官网，从概念、插画到上线一把抓。'
+    },
+    {
+      date: '2019-2022',
+      title: '像素实验室 · 资深设计师',
+      sub: '交互设计 / 动效',
+      desc: '主导 3 款独立游戏的 UI 与动效，累计下载突破 50 万，拿过两个小奖。'
+    },
+    {
+      date: '2017-2019',
+      title: '北岸科技 · 前端工程师',
+      sub: 'Web 前端 / 设计系统',
+      desc: '维护组件库与设计系统，把设计稿还原度一路推进到像素级。'
+    }
+  ];
+
+  var logHost = document.getElementById('logs');
+  LOGS.forEach(function (item, i) {
+    var row = document.createElement('div');
+    row.className = 'log-item';
+    row.style.animationDelay = 0.5 + i * 0.16 + 's';
+
+    var tag = document.createElement('div');
+    tag.className = 'date-tag';
+    tag.textContent = item.date;
+
+    var body = document.createElement('div');
+    body.className = 'log-body';
+
+    var t = document.createElement('div');
+    t.className = 't';
+    t.textContent = item.title;
+
+    var s = document.createElement('div');
+    s.className = 's';
+    s.textContent = item.sub;
+
+    var d = document.createElement('div');
+    d.className = 'd';
+    d.textContent = item.desc;
+
+    body.appendChild(t);
+    body.appendChild(s);
+    body.appendChild(d);
+    row.appendChild(tag);
+    row.appendChild(body);
+    logHost.appendChild(row);
+  });
+
+  /* ---------- 技能 ---------- */
+  var SKILLS = [
+    'Figma',
+    'Photoshop',
+    'Illustrator',
+    'HTML / CSS',
+    'JavaScript',
+    '动效设计',
+    '像素画',
+    '品牌视觉',
+    '交互原型',
+    '独立游戏'
+  ];
+  var skillIcons = ['diamond', 'bolt', 'heart', 'code'];
+  var skillHost = document.getElementById('skills');
+  SKILLS.forEach(function (name, i) {
+    var chip = document.createElement('span');
+    chip.className = 'chip';
+    chip.style.animationDelay = 0.9 + i * 0.06 + 's';
+
+    var ic = document.createElement('span');
+    ic.className = 'icon';
+    ic.appendChild(pixelGrid(ICONS[skillIcons[i % skillIcons.length]], 2, C.yellow));
+
+    var label = document.createElement('span');
+    label.textContent = name;
+
+    chip.appendChild(ic);
+    chip.appendChild(label);
+    skillHost.appendChild(chip);
+  });
+
+  /* ---------- 社交 ---------- */
+  var SOCIALS = [
+    { icon: 'code', label: 'GITHUB', href: 'https://github.com/jibai33' },
+    { icon: 'mail', label: 'EMAIL', href: 'mailto:hi@linyi.design' },
+    { icon: 'bolt', label: 'JIKE', href: '#' },
+    { icon: 'play', label: 'BILIBILI', href: '#' }
+  ];
+  var socialHost = document.getElementById('socials');
+  SOCIALS.forEach(function (item, i) {
+    var a = document.createElement('a');
+    a.className = 'btn';
+    a.href = item.href;
+    a.target = item.href.indexOf('http') === 0 ? '_blank' : '_self';
+    a.rel = 'noopener';
+    a.style.animationDelay = i * 0.24 + 's';
+
+    var ic = document.createElement('span');
+    ic.className = 'icon';
+    ic.appendChild(pixelGrid(ICONS[item.icon], 2, C.ink));
+
+    var label = document.createElement('span');
+    label.textContent = item.label;
+
+    a.appendChild(ic);
+    a.appendChild(label);
+    socialHost.appendChild(a);
+  });
+
+  /* ---------- 打字机 ---------- */
+  var TEXT = '白天设计界面，深夜写代码，间歇性沉迷像素艺术。喜欢用 8-bit 的方式，把复杂的东西做得简单又有趣。';
+  var typedEl = document.getElementById('typed');
+
+  function typewrite() {
+    if (reduce) {
+      typedEl.textContent = TEXT;
+      return;
+    }
+    var i = 0;
+    (function step() {
+      typedEl.textContent = TEXT.slice(0, i);
+      i++;
+      if (i <= TEXT.length) {
+        var ch = TEXT.charAt(i - 2);
+        var delay = ch === '，' || ch === '。' ? 220 : 46;
+        setTimeout(step, delay);
+      }
+    })();
+  }
+  setTimeout(typewrite, 700);
+
+  /* ---------- 背景星星 + 像素雨 ---------- */
+  var bg = document.getElementById('bgLayer');
+  var palettes = [C.yellow, C.red, C.green, C.blue, C.white];
+
+  for (var s = 0; s < 46; s++) {
+    var star = document.createElement('span');
+    star.className = 'star' + (Math.random() > 0.8 ? ' big' : '') + (Math.random() > 0.7 ? ' blue' : '');
+    star.style.left = Math.random() * 100 + '%';
+    star.style.top = Math.random() * 100 + '%';
+    star.style.animationDelay = (Math.random() * 3).toFixed(2) + 's';
+    star.style.animationDuration = (2 + Math.random() * 3).toFixed(2) + 's';
+    bg.appendChild(star);
+  }
+
+  for (var r = 0; r < 26; r++) {
+    var drop = document.createElement('span');
+    drop.className = 'drop';
+    var w = 3 + Math.floor(Math.random() * 4);
+    var h = 6 + Math.floor(Math.random() * 14);
+    drop.style.width = w + 'px';
+    drop.style.height = h + 'px';
+    drop.style.left = Math.random() * 100 + '%';
+    drop.style.background = palettes[Math.floor(Math.random() * palettes.length)];
+    drop.style.opacity = (0.22 + Math.random() * 0.4).toFixed(2);
+    drop.style.animationDuration = (7 + Math.random() * 8).toFixed(2) + 's';
+    drop.style.animationDelay = '-' + (Math.random() * 12).toFixed(2) + 's';
+    bg.appendChild(drop);
+  }
+
+  /* ---------- NPC 对话 ---------- */
+  var QUOTES = [
+    '你好，冒险者！需要一位设计师队友吗？我的技能栏还空着两格。',
+    '小提示：在这页随便逛逛，说不定能捡到金币。',
+    '按下 ↑↑↓↓←→←→ B A，会掉落神秘奖励哦。',
+    '记得把今天的感想写进日记本，每天存档一次，经验值才会涨。',
+    '今天也要 1UP！有新任务随时来对话框找我。'
+  ];
+  var dlgText = document.getElementById('dlgText');
+  var dlgIdx = 0;
+
+  function typeQuote() {
+    if (reduce) {
+      dlgText.textContent = QUOTES[0];
+      return;
+    }
+    var str = QUOTES[dlgIdx % QUOTES.length];
+    dlgIdx++;
+    var i = 0;
+    dlgText.textContent = '';
+    (function step() {
+      dlgText.textContent = str.slice(0, i);
+      i++;
+      if (i <= str.length) {
+        var ch = str.charAt(i - 2);
+        setTimeout(step, ch === '，' || ch === '。' ? 200 : 42);
+      } else {
+        setTimeout(typeQuote, 3200);
+      }
+    })();
+  }
+  setTimeout(typeQuote, 2100);
+
+  /* ---------- 作品仓库 ---------- */
+  var PROJECTS = [
+    {
+      icon: 'monitor',
+      color: C.yellow,
+      name: '像素官网生成器',
+      tag: 'WEB / TOY',
+      desc: '输入文案一键生成 8-bit 风格落地页，内置 12 套配色主题。',
+      clear: 10
+    },
+    {
+      icon: 'gamepad',
+      color: C.blue,
+      name: '地牢漫步',
+      tag: 'INDIE GAME',
+      desc: '不到 2MB 的 roguelike 小游戏，自己做关卡也自己做音效。',
+      clear: 8
+    },
+    {
+      icon: 'diamond',
+      color: C.green,
+      name: '8-BIT 品牌手册',
+      tag: 'BRANDING',
+      desc: '把一整套品牌规范做成可交互的像素图鉴，客户看完直接续约。',
+      clear: 9
+    }
+  ];
+
+  var projHost = document.getElementById('projects');
+  PROJECTS.forEach(function (p, i) {
+    var card = document.createElement('div');
+    card.className = 'proj';
+    card.style.animationDelay = 1.2 + i * 0.15 + 's';
+
+    var thumb = document.createElement('div');
+    thumb.className = 'proj-thumb';
+    thumb.appendChild(pixelGrid(ICONS[p.icon], 6, p.color));
+
+    var t = document.createElement('div');
+    t.className = 't';
+    t.textContent = p.name;
+
+    var tag = document.createElement('div');
+    tag.className = 'tag';
+    tag.textContent = p.tag;
+
+    var d = document.createElement('div');
+    d.className = 'd';
+    d.textContent = p.desc;
+
+    var label = document.createElement('div');
+    label.className = 'prog-label';
+    label.innerHTML = '<span>CLEAR</span><span>' + Math.round(p.clear * 10) + '%</span>';
+
+    var prog = document.createElement('div');
+    prog.className = 'prog';
+    for (var c = 0; c < 10; c++) {
+      var seg = document.createElement('i');
+      if (c < p.clear) seg.className = 'on';
+      prog.appendChild(seg);
+    }
+
+    card.appendChild(thumb);
+    card.appendChild(t);
+    card.appendChild(tag);
+    card.appendChild(d);
+    card.appendChild(label);
+    card.appendChild(prog);
+    projHost.appendChild(card);
+  });
+
+  /* ---------- 成就墙 ---------- */
+  var ACHV = [
+    { icon: 'trophy', color: C.yellow, lb: 'FIRST COMMIT', tip: '2017 年写下第一行代码' },
+    { icon: 'star', color: C.red, lb: 'PIXEL MASTER', tip: '手绘像素稿超过 1000 张' },
+    { icon: 'bolt', color: C.green, lb: 'SHIP IT', tip: '20+ 个项目成功上线' },
+    { icon: 'heart', color: C.blue, lb: '50K DL', tip: '独立游戏累计下载 50 万' },
+    { icon: 'cap', color: C.yellow, lb: 'NIGHT OWL', tip: '连续 300 天凌晨两点睡觉' },
+    { icon: 'diamond', color: C.white, lb: 'COIN HOARDER', tip: '收集了全部隐藏彩蛋' }
+  ];
+
+  var achvHost = document.getElementById('achv');
+  ACHV.forEach(function (a, i) {
+    var cell = document.createElement('div');
+    cell.className = 'cell';
+    cell.title = a.tip;
+    cell.style.animationDelay = 1.5 + i * 0.1 + 's';
+
+    var ic = document.createElement('span');
+    ic.className = 'icon';
+    ic.appendChild(pixelGrid(ICONS[a.icon], 3, a.color));
+
+    var lb = document.createElement('span');
+    lb.className = 'lb';
+    lb.textContent = a.lb;
+
+    cell.appendChild(ic);
+    cell.appendChild(lb);
+    achvHost.appendChild(cell);
+  });
+
+  /* ---------- HUD：时钟 / 金币 / 音效 ---------- */
+  var clockEl = document.getElementById('clock');
+  function pad2(n) { return ('0' + n).slice(-2); }
+  function tick() {
+    var d = new Date();
+    clockEl.textContent =
+      'TIME ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes()) + ':' + pad2(d.getSeconds());
+  }
+  tick();
+  setInterval(tick, 1000);
+
+  var coinEl = document.getElementById('coinEl');
+  var coins = 3;
+  function addCoin(n) {
+    coins += n;
+    coinEl.textContent = 'COIN ×' + pad2(coins);
+  }
+
+  var soundOn = false;
+  var actx = null;
+  var soundBtn = document.getElementById('soundBtn');
+  function beep(freq, dur, delay) {
+    if (!soundOn) return;
+    try {
+      actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+      var t0 = actx.currentTime + (delay || 0);
+      var osc = actx.createOscillator();
+      var gain = actx.createGain();
+      osc.type = 'square';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.05, t0);
+      gain.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+      osc.connect(gain);
+      gain.connect(actx.destination);
+      osc.start(t0);
+      osc.stop(t0 + dur);
+    } catch (err) { /* 忽略音频错误 */ }
+  }
+  soundBtn.addEventListener('click', function () {
+    soundOn = !soundOn;
+    soundBtn.textContent = '♪ SOUND: ' + (soundOn ? 'ON' : 'OFF');
+    if (soundOn) beep(880, 0.08);
+  });
+
+  var lastHover = null;
+  document.addEventListener('mouseover', function (e) {
+    if (!e.target.closest) return;
+    var el = e.target.closest('.chip, .btn');
+    if (el && el !== lastHover) {
+      lastHover = el;
+      beep(el.classList.contains('btn') ? 720 : 520, 0.06);
+    }
+    if (!el) lastHover = null;
+  });
+
+  /* ---------- Konami 秘技 ---------- */
+  var KONAMI = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a'];
+  var kIdx = 0;
+  document.addEventListener('keydown', function (e) {
+    var k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+    if (k === KONAMI[kIdx]) {
+      kIdx++;
+      if (kIdx === KONAMI.length) { kIdx = 0; oneUp(); }
+    } else {
+      kIdx = k === KONAMI[0] ? 1 : 0;
+    }
+  });
+
+  function oneUp() {
+    addCoin(1);
+    [523, 659, 784, 1046].forEach(function (f, i) { beep(f, 0.14, i * 0.09); });
+
+    var banner = document.createElement('div');
+    banner.className = 'oneup';
+    banner.textContent = '1UP!';
+    document.body.appendChild(banner);
+    setTimeout(function () { banner.remove(); }, 2400);
+
+    for (var c = 0; c < 56; c++) {
+      var conf = document.createElement('span');
+      conf.className = 'confetti';
+      var s = 5 + Math.random() * 7;
+      conf.style.width = s + 'px';
+      conf.style.height = s + 'px';
+      conf.style.left = Math.random() * 100 + 'vw';
+      conf.style.background = palettes[Math.floor(Math.random() * palettes.length)];
+      conf.style.animationDuration = (1.2 + Math.random() * 1.4).toFixed(2) + 's';
+      conf.style.animationDelay = (Math.random() * 0.5).toFixed(2) + 's';
+      document.body.appendChild(conf);
+      (function (node) {
+        setTimeout(function () { node.remove(); }, 3400);
+      })(conf);
+    }
+  }
+
+  /* ---------- 底部城市剪影 ---------- */
+  var sky = document.getElementById('skyline');
+  var sx = -2;
+  while (sx < 102) {
+    var bw = 4 + Math.random() * 6;
+    var bh = 50 + Math.random() * 112;
+    var bld = document.createElement('i');
+    bld.style.left = sx + '%';
+    bld.style.width = bw + '%';
+    bld.style.height = bh + 'px';
+    var winCount = Math.floor(Math.random() * 6);
+    for (var w = 0; w < winCount; w++) {
+      var win = document.createElement('b');
+      win.style.left = (8 + Math.random() * 74) + '%';
+      win.style.top = (12 + Math.random() * 62) + '%';
+      win.style.opacity = (0.25 + Math.random() * 0.45).toFixed(2);
+      bld.appendChild(win);
+    }
+    sky.appendChild(bld);
+    sx += bw + 0.6 + Math.random() * 1.4;
+  }
+
+  /* ---------- 日记本 ---------- */
+  var DKEY = 'linyi_diary_v1';
+  var MOODS = [
+    { id: 'happy', label: '开心', icon: 'mood_happy', color: C.yellow },
+    { id: 'calm', label: '平静', icon: 'mood_calm', color: C.blue },
+    { id: 'tired', label: '疲惫', icon: 'mood_tired', color: C.green },
+    { id: 'sad', label: '低落', icon: 'mood_sad', color: C.red }
+  ];
+  var WEEK = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+  var PAGE_SIZE = 4;
+  var diaryShowAll = false;
+  var curMood = 'happy';
+
+  function loadDiary() {
+    try {
+      var raw = JSON.parse(localStorage.getItem(DKEY) || '[]');
+      return Array.isArray(raw) ? raw.filter(function (it) {
+        return it && typeof it.text === 'string' && typeof it.ts === 'number';
+      }) : [];
+    } catch (err) { return []; }
+  }
+  function persistDiary(list) {
+    try { localStorage.setItem(DKEY, JSON.stringify(list)); }
+    catch (err) { showToast('SAVE FAILED!'); }
+  }
+  function fmtDate(ts) {
+    var d = new Date(ts);
+    return d.getFullYear() + '.' + pad2(d.getMonth() + 1) + '.' + pad2(d.getDate()) +
+      ' ' + WEEK[d.getDay()];
+  }
+  function fmtTime(ts) {
+    var d = new Date(ts);
+    return pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+  }
+  function moodOf(id) {
+    for (var i = 0; i < MOODS.length; i++) if (MOODS[i].id === id) return MOODS[i];
+    return MOODS[0];
+  }
+
+  var diaryListEl = document.getElementById('diaryList');
+  var moreBtn = document.getElementById('diaryMore');
+
+  function renderDiary() {
+    var list = loadDiary();
+    diaryListEl.innerHTML = '';
+
+    if (!list.length) {
+      var empty = document.createElement('div');
+      empty.className = 'diary-empty';
+      empty.textContent = '还没有日记，写下第一条存档吧 ▸';
+      diaryListEl.appendChild(empty);
+      moreBtn.style.display = 'none';
+      return;
+    }
+
+    var shown = diaryShowAll ? list : list.slice(0, PAGE_SIZE);
+    shown.forEach(function (item, i) {
+      var m = moodOf(item.mood);
+      var box = document.createElement('div');
+      box.className = 'diary-item';
+      box.style.animationDelay = i * 0.06 + 's';
+
+      var head = document.createElement('div');
+      head.className = 'diary-head';
+
+      var date = document.createElement('span');
+      date.className = 'diary-date';
+      date.textContent = fmtDate(item.ts) + ' ' + fmtTime(item.ts);
+
+      var mood = document.createElement('span');
+      mood.className = 'diary-mood';
+      mood.title = m.label;
+      mood.appendChild(pixelGrid(ICONS[m.icon], 2, m.color));
+
+      var del = document.createElement('button');
+      del.className = 'diary-del';
+      del.type = 'button';
+      del.textContent = 'DEL';
+      del.addEventListener('click', function () {
+        if (!window.confirm('删除这条日记？此操作不可恢复。')) return;
+        var rest = loadDiary().filter(function (it) { return it.id !== item.id; });
+        persistDiary(rest);
+        renderDiary();
+        beep(220, 0.12);
+        showToast('DELETED');
+      });
+
+      head.appendChild(date);
+      head.appendChild(mood);
+      head.appendChild(del);
+
+      var text = document.createElement('div');
+      text.className = 'diary-text';
+      text.textContent = item.text;
+
+      box.appendChild(head);
+      box.appendChild(text);
+      diaryListEl.appendChild(box);
+    });
+
+    moreBtn.style.display = list.length > PAGE_SIZE ? '' : 'none';
+    moreBtn.textContent = diaryShowAll
+      ? 'FOLD ▲'
+      : 'MORE (' + (list.length - PAGE_SIZE) + ') ▼';
+  }
+
+  /* 心情选择器 */
+  var moodsEl = document.getElementById('moods');
+  MOODS.forEach(function (m) {
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'mood-btn' + (m.id === curMood ? ' sel' : '');
+    btn.dataset.mood = m.id;
+
+    var ic = document.createElement('span');
+    ic.className = 'icon';
+    ic.appendChild(pixelGrid(ICONS[m.icon], 3, m.color));
+
+    var lb = document.createElement('span');
+    lb.textContent = m.label;
+
+    btn.appendChild(ic);
+    btn.appendChild(lb);
+    btn.addEventListener('click', function () {
+      curMood = m.id;
+      moodsEl.querySelectorAll('.mood-btn').forEach(function (b) {
+        b.classList.toggle('sel', b.dataset.mood === curMood);
+      });
+      beep(660, 0.05);
+    });
+    moodsEl.appendChild(btn);
+  });
+
+  /* 输入与保存 */
+  var diaryTextEl = document.getElementById('diaryText');
+  var charCount = document.getElementById('charCount');
+  diaryTextEl.addEventListener('input', function () {
+    charCount.textContent = diaryTextEl.value.length + '/500';
+  });
+  diaryTextEl.addEventListener('keydown', function (e) {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+      e.preventDefault();
+      document.getElementById('diarySave').click();
+    }
+  });
+
+  document.getElementById('diarySave').addEventListener('click', function () {
+    var val = diaryTextEl.value.trim();
+    if (!val) {
+      diaryTextEl.classList.remove('err');
+      void diaryTextEl.offsetWidth;
+      diaryTextEl.classList.add('err');
+      beep(180, 0.12);
+      return;
+    }
+    var list = loadDiary();
+    list.unshift({
+      id: Date.now() + '-' + Math.random().toString(36).slice(2, 7),
+      ts: Date.now(),
+      mood: curMood,
+      text: val.slice(0, 500)
+    });
+    persistDiary(list);
+    diaryTextEl.value = '';
+    charCount.textContent = '0/500';
+    diaryShowAll = true;
+    renderDiary();
+    addCoin(1);
+    beep(880, 0.08);
+    beep(1174, 0.1, 0.09);
+    showToast('SAVED! +1 COIN');
+  });
+
+  /* 展开 / 收起 */
+  moreBtn.addEventListener('click', function () {
+    diaryShowAll = !diaryShowAll;
+    renderDiary();
+  });
+
+  /* 导出备份 */
+  document.getElementById('diaryExport').addEventListener('click', function () {
+    var list = loadDiary();
+    if (!list.length) { showToast('NOTHING TO EXPORT'); return; }
+    var blob = new Blob([JSON.stringify(list, null, 2)], { type: 'application/json' });
+    var a = document.createElement('a');
+    var d = new Date();
+    a.href = URL.createObjectURL(blob);
+    a.download = 'diary-backup-' + d.getFullYear() + pad2(d.getMonth() + 1) + pad2(d.getDate()) + '.json';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
+    showToast('EXPORTED');
+  });
+
+  /* 导入备份（按 id 合并去重） */
+  document.getElementById('diaryImport').addEventListener('click', function () {
+    document.getElementById('diaryFile').click();
+  });
+  document.getElementById('diaryFile').addEventListener('change', function (e) {
+    var file = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function () {
+      try {
+        var incoming = JSON.parse(String(reader.result));
+        if (!Array.isArray(incoming)) throw new Error('bad');
+        var map = {};
+        loadDiary().forEach(function (it) { map[it.id] = it; });
+        var added = 0;
+        incoming.forEach(function (it) {
+          if (!it || typeof it.text !== 'string' || typeof it.ts !== 'number') return;
+          var id = typeof it.id === 'string' && it.id ? it.id : 'imp-' + it.ts + '-' + Math.random().toString(36).slice(2, 7);
+          var mood = MOODS.some(function (m) { return m.id === it.mood; }) ? it.mood : 'calm';
+          if (!map[id]) { added++; }
+          map[id] = {
+            id: id,
+            ts: it.ts,
+            mood: mood,
+            text: it.text.slice(0, 500)
+          };
+        });
+        var merged = Object.keys(map).map(function (k) { return map[k]; });
+        merged.sort(function (a, b) { return b.ts - a.ts; });
+        persistDiary(merged);
+        diaryShowAll = true;
+        renderDiary();
+        showToast('IMPORTED +' + added);
+        beep(660, 0.1);
+      } catch (err) {
+        showToast('IMPORT FAILED');
+        beep(180, 0.15);
+      }
+    };
+    reader.readAsText(file);
+  });
+
+  /* 像素小提示条 */
+  var toastTimer = null;
+  function showToast(msg) {
+    var old = document.querySelector('.toast');
+    if (old) old.remove();
+    var t = document.createElement('div');
+    t.className = 'toast';
+    t.textContent = msg;
+    document.body.appendChild(t);
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.remove(); }, 1600);
+  }
+
+  renderDiary();
+
+  /* ---------- 开机加载 ---------- */
+  var loader = document.getElementById('loader');
+  function hideLoader() { loader.classList.add('done'); }
+  if (reduce) {
+    hideLoader();
+  } else {
+    var barCells = loader.querySelectorAll('.loader-bar i');
+    var pctEl = document.getElementById('loaderPct');
+    var loaded = 0;
+    var loadTimer = setInterval(function () {
+      loaded++;
+      if (loaded <= barCells.length) {
+        barCells[loaded - 1].classList.add('on');
+        pctEl.textContent = Math.round((loaded / barCells.length) * 100) + '%';
+      }
+      if (loaded >= barCells.length) {
+        clearInterval(loadTimer);
+        setTimeout(hideLoader, 320);
+      }
+    }, 60);
+  }
+})();
+</script>
+</body>
+</html>
