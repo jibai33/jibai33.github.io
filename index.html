@@ -907,6 +907,18 @@
     white-space: nowrap;
   }
   .diary-mood { display: flex; align-items: center; }
+  /* 「只在本机」标记：还没写进仓库 diary.json 的日记，别的设备 / 别人都看不到 */
+  .diary-badge {
+    padding: 2px 6px 1px;
+    background: rgba(249, 217, 73, 0.14);
+    border: 2px solid rgba(249, 217, 73, 0.7);
+    color: var(--yellow);
+    font-family: var(--px);
+    font-size: 7px;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+    cursor: help;
+  }
   .diary-del {
     margin-left: auto;
     padding: 2px 7px;
@@ -1043,6 +1055,17 @@
     cursor: pointer;
   }
   .mini-btn:hover { border-color: var(--white); color: var(--yellow); }
+  .mini-btn.warn {
+    border-color: rgba(249, 217, 73, 0.75);
+    color: var(--yellow);
+    background: rgba(249, 217, 73, 0.12);
+    animation: pendingGlow 1.8s ease-in-out infinite;
+  }
+  .mini-btn.warn:hover { background: var(--yellow); color: var(--ink); }
+  @keyframes pendingGlow {
+    0%, 100% { border-color: rgba(249, 217, 73, 0.4); }
+    50% { border-color: rgba(249, 217, 73, 0.95); }
+  }
   .diary-hint {
     margin-left: auto;
     font-family: var(--body);
@@ -1499,6 +1522,8 @@
           <button class="mini-btn" id="diaryImport" type="button" title="导入存档（.html 或 .json）">IMPORT</button>
           <button class="mini-btn" id="diaryPublish" type="button" title="下载 diary.json，放进仓库根提交后线上即可读到">PUBLISH</button>
           <button class="mini-btn" id="diarySync" type="button" title="直接写入 GitHub 仓库（需先配置 token）">SYNC ▲</button>
+          <button class="mini-btn warn" id="diaryPending" type="button" hidden
+            title="这些日记只存在这台设备上：别的设备、别人打开页面都看不到它们，评论也就没有入口。点这里上传到仓库。">未同步 0</button>
           <input type="file" id="diaryFile" accept=".html,.htm,.json,text/html,application/json" hidden />
           <span class="diary-hint">⌘/CTRL+ENTER 保存 · 打开时自动合并仓库 diary.json</span>
         </div>
@@ -2646,6 +2671,9 @@
   /* ---------- 日记本 ---------- */
   var DKEY = 'linyi_diary_v1';
   var DTOMB = 'linyi_diary_v1_tomb';
+  /* 仓库 diary.json 里已经存在的条目（key = ts|text）。null 表示还没拉取成功，
+     此时不做「未同步」判定，免得离线打开时满屏误报。 */
+  var REMOTE_KEYS = null;
 
   /* ---------- 日记评论（云数据库 + 同源小部件） ----------
      评论存在 WorkBuddy 云数据库的 diary_comments 表里，访客不用登录、填昵称即可发言。
@@ -2682,6 +2710,12 @@
   }
   /* 删除墓碑：记录被删条目的 key，避免线上存档把已删日记重新合并回来 */
   function diaryKey(it) { return it.ts + '|' + it.text; }
+  /* 这条日记是否已经上了仓库（上线后其他设备 / 访客都能看到） */
+  function isPublished(it) { return !!REMOTE_KEYS && !!REMOTE_KEYS[diaryKey(it)]; }
+  function pendingCount() {
+    if (!REMOTE_KEYS) return 0;
+    return loadDiary().filter(function (it) { return !isPublished(it); }).length;
+  }
   function loadTomb() {
     try {
       var raw = JSON.parse(localStorage.getItem(DTOMB) || '[]');
@@ -2715,6 +2749,7 @@
 
   var diaryListEl = document.getElementById('diaryList');
   var moreBtn = document.getElementById('diaryMore');
+  var pendingBtn = document.getElementById('diaryPending');
 
   /* ---------- 日期查询 ---------- */
   var dFromEl = document.getElementById('dFrom');
@@ -2867,6 +2902,16 @@
     host.className = 'cmt-host';
 
     panel.appendChild(head);
+
+    /* 没上线的日记，评论地址只有本机知道：别人（或你换台设备）连卡片都看不到 */
+    if (!isPublished(item)) {
+      var warn = document.createElement('p');
+      warn.className = 'cmt-tip cmt-warn';
+      warn.textContent = '这条日记还没同步到仓库（只在本机），所以换设备 / 别人打开页面都看不到它，' +
+        '评论也就没有入口。先点底栏 SYNC ▲ 上传，再分享。';
+      panel.appendChild(warn);
+    }
+
     panel.appendChild(host);
 
     if (!cmtReady()) {
@@ -2882,10 +2927,18 @@
     beep(660, 0.05);
   }
 
+  function updatePendingBtn() {
+    var n = pendingCount();
+    if (!n) { pendingBtn.hidden = true; return; }
+    pendingBtn.hidden = false;
+    pendingBtn.textContent = '未同步 ' + n + ' ▲';
+  }
+
   function renderDiary() {
     var list = filteredDiary();
     diaryListEl.innerHTML = '';
     syncFilterUI();
+    updatePendingBtn();
 
     if (!list.length) {
       var empty = document.createElement('div');
@@ -2921,8 +2974,10 @@
       del.textContent = 'DEL';
       del.addEventListener('click', function () {
         if (!window.confirm('删除这条日记？此操作不可恢复。')) return;
-        addTomb(diaryKey(item));
-        var rest = loadDiary().filter(function (it) { return it.id !== item.id; });
+        var k = diaryKey(item);
+        addTomb(k);
+        /* 按 ts|text 删，老数据没有 id 时也不会误删别的条目 */
+        var rest = loadDiary().filter(function (it) { return diaryKey(it) !== k; });
         persistDiary(rest);
         renderDiary();
         beep(220, 0.12);
@@ -2931,6 +2986,14 @@
 
       head.appendChild(date);
       head.appendChild(mood);
+      if (!isPublished(item)) {
+        var badge = document.createElement('span');
+        badge.className = 'diary-badge';
+        badge.textContent = '只在本机';
+        badge.title = '这条还没写进仓库 diary.json：换设备或别人打开页面都看不到它，' +
+          '点底栏的 SYNC ▲ 上传后才会全网可见。';
+        head.appendChild(badge);
+      }
       head.appendChild(del);
 
       var text = document.createElement('div');
@@ -2944,7 +3007,7 @@
       cmtBtn.type = 'button';
       cmtBtn.className = 'cmt-btn';
       cmtBtn.textContent = 'COMMENTS ▼';
-      cmtBtn.title = cmtReady() ? '查看 / 发表评论（GitHub 账号）' : '评论区待接通（点开看配置步骤）';
+      cmtBtn.title = cmtReady() ? '查看 / 发表评论（不用登录，填个昵称就行）' : '评论区待接通（点开看配置步骤）';
       cmtBtn.addEventListener('click', function () { toggleComments(box, cmtBtn, item); });
       actions.appendChild(cmtBtn);
 
@@ -3288,12 +3351,21 @@
     fetch(DIARY_JSON_URL + '?t=' + Date.now(), { cache: 'no-store' })
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (data) {
-        if (!Array.isArray(data) || !data.length) return;
+        if (!Array.isArray(data)) return;
+        /* 记下「仓库里有哪些」，用来判断哪几条还只活在本机 */
+        REMOTE_KEYS = {};
+        data.forEach(function (it) {
+          if (it && typeof it.text === 'string' && typeof it.ts === 'number') {
+            REMOTE_KEYS[diaryKey(it)] = 1;
+          }
+        });
+        if (!data.length) { renderDiary(); return; }
         var merged = mergeRemoteEntries(loadDiary(), data, loadTomb());
-        if (!merged.added) return;
-        persistDiary(merged.list);
+        if (merged.added) {
+          persistDiary(merged.list);
+          showToast('SYNC +' + merged.added);
+        }
         renderDiary();
-        showToast('SYNC +' + merged.added);
       })
       .catch(function () { /* 离线 / 无存档时静默 */ });
   }
@@ -3388,7 +3460,13 @@
       })
       .then(function (r) {
         if (!r || !r.ok) throw new Error('PUT ' + (r ? r.status : 'no-response'));
-        if (saved) { persistDiary(saved); renderDiary(); }
+        if (saved) {
+          persistDiary(saved);
+          /* 刚写进去的整份列表 = 现在仓库里有的全部 */
+          REMOTE_KEYS = {};
+          saved.forEach(function (it) { REMOTE_KEYS[diaryKey(it)] = 1; });
+          renderDiary();
+        }
         showToast('SYNCED → GitHub ×' + (saved ? saved.length : 0));
         beep(880, 0.08);
         restoreSyncBtn();
@@ -3397,6 +3475,14 @@
   }
 
   syncBtn.addEventListener('click', syncToGitHub);
+  if (pendingBtn) {
+    pendingBtn.addEventListener('click', function () {
+      var n = pendingCount();
+      if (!n) { renderDiary(); return; }
+      showToast('上传本机的 ' + n + ' 条日记…');
+      syncToGitHub();
+    });
+  }
   document.getElementById('diaryTokenSave').addEventListener('click', function () {
     var v = tokenInput.value.trim();
     if (!v) { showToast('token 为空'); return; }
