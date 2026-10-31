@@ -17,18 +17,46 @@
 | 作品仓库 | 3 个作品卡片，各带「CLEAR」进度条：像素官网生成器、地牢漫步、8-BIT 品牌手册 |
 | 成就墙 | 6 枚成就徽章：FIRST COMMIT、PIXEL MASTER、SHIP IT、50K DL、NIGHT OWL、COIN HOARDER |
 | 日记本 | 500 字上限、4 种心情标签、按日期区间筛选、每条可展开评论区、导出独立 HTML 存档、JSON 导入导出、与仓库 `diary.json` 自动合并、`SYNC ▲` 一键直传仓库 |
+| 天气粒子 | 按访问当天的实时天气掉落像素：晴＝彩色微尘、阴＝灰雾、雨＝蓝色雨丝（触底溅起）、雪＝白色雪块、雷雨＝雨＋随机闪电；HUD 显示「WX 小雨 13°C」 |
 
 ## 技术说明
 
-- **单文件实现**：全部结构与逻辑在 `index.html`（3157 行），无构建步骤、无框架，样式与脚本全部内联
+- **单文件实现**：全部结构与逻辑在 `index.html`（3498 行），无构建步骤、无框架，样式与脚本全部内联
 - **数据驱动**：内容由内联 JS 的数据数组渲染——`LOGS`（经历）、`SKILLS`（技能）、`SOCIALS`（联系方式）、`PROJECTS`（作品）、`ACHV`（成就）。改文案只需改对应数组，不必动 DOM
 - **像素图形**：图标是代码里的点阵字符串（`ICONS`），由 `pixelGrid()` 绘制
 - **头像**：`assets/avatar.png`（源图 `assets/头像.png` 居中裁方后缩到 160×160），CSS 用 `image-rendering: pixelated` 最近邻放大保留颗粒感；图片缺失时自动退回点阵 `Z` 图标
 - **字体自托管**：Fusion Pixel（中文正文，78 个 unicode-range 分片）、Press Start 2P（标题）、VT323，均为 SIL OFL-1.1，许可与原文见 LICENSES.md
-- **外部请求**：MUSIC 播放调用网易云音乐外链、评论区从云服务域名加载 `comments.html`；字体、SDK 与样式全部本地自托管，不依赖任何 CDN
+- **外部请求**：MUSIC 播放调用网易云音乐外链、评论区从云服务域名加载 `comments.html`、天气数据请求 `api.open-meteo.com`；字体、SDK 与样式全部本地自托管，不依赖任何 CDN
+- **天气粒子**：`WX` / `WX_FX` 两张表驱动，Canvas 双层（背景层 + 卡片之上的前景层）绘制像素粒子，天气取不到时退化为晴天微尘
 - **日记数据**：正文存浏览器 `localStorage`，仓库根 `diary.json` 是跨设备的共享快照；页面打开时自动拉取合并，导出 HTML 存档（内嵌 `diary-data` JSON，可再次导入）时文件名形如 `diary-archive-20261030.html`
 - **评论**：WorkBuddy 云数据库（PostgreSQL + RLS）+ 自建 iframe 小组件。评论 UI 部署在云服务域名 `https://jibai33-home.app.workbuddy.host/comments.html`，页面用 iframe 内嵌并按 `postMessage` 自适应高度；访客无需登录，填昵称即可留言
 - **部署**：GitHub Pages，`main` 分支根目录直接发布，无需 Actions
+
+## 天气粒子
+
+页面打开时会取一次实时天气，然后按天气掉落不同像素。数据来自 [Open-Meteo](https://open-meteo.com/)（免 key、支持 CORS），默认坐标取西安（34.34, 108.94）；如果访问者**此前已经授权过定位**，就用其真实位置，不主动弹权限框。结果存 `sessionStorage` 30 分钟，避免每次刷新都请求。
+
+| 天气（WMO 代码） | 粒子模式 | 表现 |
+|---|---|---|
+| 晴 / 晴间多云（0、1） | `clear` | 彩色像素缓缓下落、左右飘摆（夜间换成冷色） |
+| 多云（2） | `cloud` | 少量灰白像素，速度慢 |
+| 阴（3） | `overcast` | 灰雾颗粒缓慢横移，星空自动压暗 |
+| 雾（45、48） | `fog` | 横向拉长的雾带 |
+| 毛毛雨（51–56） | `drizzle` | 稀疏短雨丝 |
+| 小雨 / 中雨 / 阵雨（57–67、80–81） | `rain` | 明显雨丝，触底有像素水花 |
+| 大雨 / 暴雨（65、67、82） | `heavy` | 更密更快，雨丝更长 |
+| 雪（71–77、85、86） | `snow` | 白色方块缓慢飘落 |
+| 雷雨（95、96、99） | `storm` | 密集雨丝 + 每 5–12 秒一次全屏闪电 |
+
+实现要点：
+
+- 双层 Canvas：`#wxBack` 在卡片之下、`#wxFront` 在卡片之上，粒子按 `depth` 随机分到两层，形成前后景纵深；两层都 `pointer-events: none`
+- 像素化：`fillRect` + 坐标取整 + `image-rendering` 无关（Canvas 本身就是硬边），DPR 上限 2，避免手机上过度渲染
+- 性能：粒子数按天气 20–230 浮动；页面切到后台（`visibilitychange`）暂停 `requestAnimationFrame`，回到前台恢复
+- 降级：`prefers-reduced-motion: reduce` 时完全不画粒子，只保留 HUD 文字；接口失败或断网时退化为晴天微尘，HUD 显示「WX 天气未知」
+- HUD 里的天气条带 `title`，鼠标悬停可看到坐标、温度与数据来源
+
+想换城市：改 `index.html` 里 `WX.lat` / `WX.lon` 与 `WX.place`；想调密度或颜色：改 `WX_FX` 里对应模式的 `count`、`a`、`colors`。
 
 ## 日记评论（云端匿名评论）
 
@@ -95,6 +123,7 @@ python3 -m http.server 8000
 
 ## 已知限制
 
+- **天气依赖 `api.open-meteo.com` 可达**：被墙或断网时粒子退化为晴天微尘，HUD 显示「WX 天气未知」，页面其他部分不受影响
 - **评论依赖云服务域名可达**：评论组件托管在 `jibai33-home.app.workbuddy.host`，该域名不通时 iframe 会空白，页面 12 秒后提示并给出「新窗口打开评论页」的链接
 - **评论 UI 与页面不同源**：`comments.html` 改动后必须重新发布到云服务域名才生效；只推 GitHub Pages 不会更新线上评论组件
 - **重新发布会换 sharecode**：`CLOUD_CMT.share` 与发布链接里的一致，发布链接变化时应同步更新该常量，否则 iframe 会拿到 403

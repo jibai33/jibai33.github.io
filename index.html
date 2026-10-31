@@ -84,19 +84,24 @@
     50% { opacity: 0.12; }
   }
 
-  .drop {
-    position: absolute;
-    top: -40px;
-    animation-name: fall;
-    animation-timing-function: steps(24, end);
-    animation-iteration-count: infinite;
-    opacity: 0.55;
+  #bgLayer.wx-dim {
+    filter: brightness(0.42) saturate(0.45);
+    transition: filter 1.6s steps(6, end);
   }
 
-  @keyframes fall {
-    0% { transform: translateY(-40px); }
-    100% { transform: translateY(calc(100vh + 60px)); }
+  /* ---------- 天气粒子层（按实时天气掉落像素） ---------- */
+  .wx-canvas {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 1.2s steps(6, end);
   }
+  .wx-canvas.on { opacity: 1; }
+  #wxBack { z-index: 0; }
+  #wxFront { z-index: 3; }
 
   /* ---------- 舞台与卡片 ---------- */
   .stage {
@@ -1320,9 +1325,10 @@
 
   @media (max-width: 940px) {
     .card-inner {
-      grid-template-columns: 1fr;
+      grid-template-columns: minmax(0, 1fr);
       padding: 26px 22px;
     }
+    .profile, .content { min-width: 0; }
     .profile {
       padding-right: 0;
       padding-bottom: 26px;
@@ -1342,6 +1348,8 @@
     .card { border-width: 3px; box-shadow: 4px 4px 0 #000, 8px 8px 0 rgba(0, 0, 0, 0.55); }
     .log-item { grid-template-columns: 1fr; gap: 8px; }
     .date-tag { justify-self: start; padding: 4px 8px; }
+    .diary-head { flex-wrap: wrap; }
+    .diary-hint { flex: 1 1 100%; margin-left: 0; line-height: 1.6; }
     .btn { font-size: 9px; padding: 8px 10px; }
     .socials { flex-direction: column; }
     .socials .btn { flex: 0 0 auto; }
@@ -1373,7 +1381,9 @@
 </div>
 
 <div class="bg-layer" id="bgLayer" aria-hidden="true"></div>
+<canvas class="wx-canvas" id="wxBack" aria-hidden="true"></canvas>
 <div class="skyline" id="skyline" aria-hidden="true"></div>
+<canvas class="wx-canvas" id="wxFront" aria-hidden="true"></canvas>
 
 <main class="stage">
   <div class="hud" aria-label="游戏状态栏">
@@ -1382,6 +1392,7 @@
     <span class="hud-item green">● OPEN FOR QUESTS</span>
     <button class="hud-item" id="soundBtn" type="button">♪ SOUND: ON</button>
     <span class="hud-item" id="coinEl">COIN ×03</span>
+    <span class="hud-item" id="wxChip" title="天气数据来自 open-meteo.com">WX ··</span>
     <span class="hud-item" id="clock">TIME 00:00:00</span>
   </div>
 
@@ -1957,9 +1968,8 @@
   }
   setTimeout(typewrite, 700);
 
-  /* ---------- 背景星星 + 像素雨 ---------- */
+  /* ---------- 背景星星 ---------- */
   var bg = document.getElementById('bgLayer');
-  var palettes = [C.yellow, C.red, C.green, C.blue, C.white];
 
   for (var s = 0; s < 46; s++) {
     var star = document.createElement('span');
@@ -1971,20 +1981,351 @@
     bg.appendChild(star);
   }
 
-  for (var r = 0; r < 26; r++) {
-    var drop = document.createElement('span');
-    drop.className = 'drop';
-    var w = 3 + Math.floor(Math.random() * 4);
-    var h = 6 + Math.floor(Math.random() * 14);
-    drop.style.width = w + 'px';
-    drop.style.height = h + 'px';
-    drop.style.left = Math.random() * 100 + '%';
-    drop.style.background = palettes[Math.floor(Math.random() * palettes.length)];
-    drop.style.opacity = (0.22 + Math.random() * 0.4).toFixed(2);
-    drop.style.animationDuration = (7 + Math.random() * 8).toFixed(2) + 's';
-    drop.style.animationDelay = '-' + (Math.random() * 12).toFixed(2) + 's';
-    bg.appendChild(drop);
+  /* ---------- 天气粒子：按实时天气掉落像素 ----------
+     数据来自 Open-Meteo（免 key、支持 CORS），默认坐标取西安；
+     只有访问者此前已经授权定位时才用其真实位置，不主动弹权限框。
+     结果缓存 sessionStorage 30 分钟；取不到天气时退化为晴天的微尘，不影响页面。 */
+  var WX = {
+    lat: 34.3416,
+    lon: 108.9398,
+    place: '西安',
+    code: null,
+    temp: null,
+    isDay: 1,
+    mode: 'clear',
+    label: '晴',
+    icon: '☀',
+    cacheKey: 'pixel-wx-v1',
+    ttl: 30 * 60 * 1000
+  };
+
+  /* WMO 天气代码 → [粒子模式, 中文名, 图标] */
+  var WX_TABLE = {
+    0: ['clear', '晴', '☀'],
+    1: ['clear', '晴间多云', '☀'],
+    2: ['cloud', '多云', '⛅'],
+    3: ['overcast', '阴', '☁'],
+    45: ['fog', '雾', '≋'],
+    48: ['fog', '雾凇', '≋'],
+    51: ['drizzle', '毛毛雨', '☂'],
+    53: ['drizzle', '小雨', '☂'],
+    55: ['drizzle', '细雨', '☂'],
+    56: ['drizzle', '冻毛毛雨', '☂'],
+    57: ['rain', '冻雨', '☂'],
+    61: ['rain', '小雨', '☂'],
+    63: ['rain', '中雨', '☂'],
+    65: ['heavy', '大雨', '☔'],
+    66: ['rain', '冻雨', '☂'],
+    67: ['heavy', '强冻雨', '☔'],
+    71: ['snow', '小雪', '❄'],
+    73: ['snow', '中雪', '❄'],
+    75: ['snow', '大雪', '❄'],
+    77: ['snow', '雪粒', '❄'],
+    80: ['rain', '阵雨', '☂'],
+    81: ['rain', '强阵雨', '☂'],
+    82: ['heavy', '暴雨', '☔'],
+    85: ['snow', '阵雪', '❄'],
+    86: ['snow', '强阵雪', '❄'],
+    95: ['storm', '雷阵雨', '⚡'],
+    96: ['storm', '雷雨冰雹', '⚡'],
+    99: ['storm', '强雷暴', '⚡']
+  };
+
+  var wxBack = document.getElementById('wxBack');
+  var wxFront = document.getElementById('wxFront');
+  var wxChip = document.getElementById('wxChip');
+
+  /* 每种天气的粒子配方：count 数量、vy 下落速度、vx 横向速度、
+     w/h 像素尺寸、a 透明度、sway 飘摆幅度、colors 调色、splash 触底溅起 */
+  var WX_FX = {
+    clear: {
+      count: 34, vy: [12, 34], vx: [-8, 8], w: [2, 4], h: [4, 12], a: [0.16, 0.46], sway: 10,
+      colors: [C.yellow, C.blue, C.green, C.white]
+    },
+    'clear-night': {
+      count: 28, vy: [10, 26], vx: [-6, 6], w: [2, 4], h: [3, 9], a: [0.14, 0.38], sway: 8,
+      colors: [C.blue, C.white, '#8b91ad']
+    },
+    cloud: {
+      count: 26, vy: [6, 18], vx: [-14, 4], w: [2, 4], h: [2, 4], a: [0.1, 0.3], sway: 14,
+      colors: [C.white, C.blue, '#8b91ad']
+    },
+    overcast: {
+      count: 22, vy: [2, 8], vx: [-16, 2], w: [3, 6], h: [2, 3], a: [0.06, 0.18], sway: 8,
+      colors: ['#8b91ad', '#aab0c8', C.white]
+    },
+    fog: {
+      count: 18, vy: [-3, 3], vx: [-22, -8], w: [8, 22], h: [2, 3], a: [0.06, 0.15], sway: 6,
+      colors: ['#c8cce0', '#8b91ad']
+    },
+    drizzle: {
+      count: 62, vy: [140, 220], vx: [-18, -6], w: [1, 1], h: [5, 10], a: [0.2, 0.46], sway: 0,
+      colors: ['#8fc7f5', C.blue], splash: true
+    },
+    rain: {
+      count: 160, vy: [320, 520], vx: [-40, -18], w: [1, 2], h: [9, 18], a: [0.24, 0.55], sway: 0,
+      colors: ['#9fd0f7', C.blue, '#cfe6fa'], splash: true
+    },
+    heavy: {
+      count: 230, vy: [520, 760], vx: [-70, -30], w: [1, 2], h: [12, 24], a: [0.28, 0.6], sway: 0,
+      colors: ['#b9dcf8', '#7fb8e8', C.white], splash: true
+    },
+    snow: {
+      count: 150, vy: [30, 72], vx: [-12, 12], w: [2, 5], h: [2, 5], a: [0.36, 0.78], sway: 28,
+      colors: [C.white, '#dbe9ff', '#bcd6ff']
+    },
+    storm: {
+      count: 200, vy: [420, 640], vx: [-56, -26], w: [1, 2], h: [10, 20], a: [0.26, 0.56], sway: 0,
+      colors: ['#a8d4f6', C.blue, C.white], splash: true, lightning: true
+    }
+  };
+
+  var wxParts = [];
+  var wxSplash = [];
+  var ctxBack = null;
+  var ctxFront = null;
+  var vw = 0;
+  var vh = 0;
+  var wxDpr = 1;
+  var wxRunning = false;
+  var wxRaf = 0;
+  var wxLast = 0;
+  var wxFlash = 0;
+  var wxNextFlash = 0;
+
+  function rnd(a, b) { return a + Math.random() * (b - a); }
+  function pickOne(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+  function wxConfig() {
+    if (WX.mode === 'clear' && !WX.isDay) return WX_FX['clear-night'];
+    return WX_FX[WX.mode] || WX_FX.clear;
   }
+
+  function wxSize() {
+    vw = window.innerWidth;
+    vh = window.innerHeight;
+    wxDpr = Math.min(window.devicePixelRatio || 1, 2);
+    [wxBack, wxFront].forEach(function (cv) {
+      if (!cv) return;
+      cv.width = Math.round(vw * wxDpr);
+      cv.height = Math.round(vh * wxDpr);
+      cv.style.width = vw + 'px';
+      cv.style.height = vh + 'px';
+    });
+    if (ctxBack) ctxBack.setTransform(wxDpr, 0, 0, wxDpr, 0, 0);
+    if (ctxFront) ctxFront.setTransform(wxDpr, 0, 0, wxDpr, 0, 0);
+  }
+
+  function wxPart(cfg) {
+    var depth = Math.random();
+    var scale = 0.6 + depth * 0.7;
+    return {
+      d: depth,
+      x: Math.random() * (vw + 80) - 40,
+      y: Math.random() * vh - vh * 0.15,
+      w: Math.max(1, Math.round(rnd(cfg.w[0], cfg.w[1]) * scale)),
+      h: Math.max(1, Math.round(rnd(cfg.h[0], cfg.h[1]) * scale)),
+      vy: rnd(cfg.vy[0], cfg.vy[1]) * scale,
+      vx: rnd(cfg.vx[0], cfg.vx[1]),
+      a: rnd(cfg.a[0], cfg.a[1]),
+      sway: cfg.sway ? rnd(cfg.sway * 0.4, cfg.sway) : 0,
+      ph: Math.random() * Math.PI * 2,
+      color: pickOne(cfg.colors)
+    };
+  }
+
+  function wxTick(ts) {
+    if (!wxRunning) return;
+    var dt = wxLast ? Math.min(0.06, (ts - wxLast) / 1000) : 0.016;
+    wxLast = ts;
+
+    var cfg = wxConfig();
+    while (wxParts.length < cfg.count) wxParts.push(wxPart(cfg));
+    while (wxParts.length > cfg.count) wxParts.pop();
+
+    ctxBack.clearRect(0, 0, vw, vh);
+    ctxFront.clearRect(0, 0, vw, vh);
+
+    for (var i = 0; i < wxParts.length; i++) {
+      var p = wxParts[i];
+      p.y += p.vy * dt;
+      p.x += (p.vx + (p.sway ? Math.sin(ts * 0.0012 + p.ph) * p.sway : 0)) * dt;
+
+      if (p.y > vh + p.h) {
+        if (cfg.splash && wxSplash.length < 36 && Math.random() < 0.4) {
+          wxSplash.push({ x: p.x, w: 3 + Math.random() * 4, life: 1 });
+        }
+        p.y = -p.h - Math.random() * 60;
+        p.x = Math.random() * (vw + 80) - 40;
+      }
+      if (p.x < -60) p.x = vw + 40;
+      else if (p.x > vw + 60) p.x = -40;
+
+      var c = p.d < 0.42 ? ctxBack : ctxFront;
+      c.globalAlpha = p.a;
+      c.fillStyle = p.color;
+      c.fillRect(Math.round(p.x), Math.round(p.y), p.w, p.h);
+    }
+
+    /* 触底溅起的小水花 */
+    for (var k = wxSplash.length - 1; k >= 0; k--) {
+      var sp = wxSplash[k];
+      sp.life -= dt * 3.2;
+      if (sp.life <= 0) { wxSplash.splice(k, 1); continue; }
+      ctxFront.globalAlpha = 0.32 * sp.life;
+      ctxFront.fillStyle = '#cfe6fa';
+      ctxFront.fillRect(Math.round(sp.x - sp.w / 2), vh - 3, Math.round(sp.w), 2);
+    }
+    ctxBack.globalAlpha = 1;
+    ctxFront.globalAlpha = 1;
+
+    /* 雷雨：偶尔整屏一闪 */
+    if (cfg.lightning) {
+      if (!wxNextFlash) wxNextFlash = ts + rnd(4000, 9000);
+      if (ts > wxNextFlash) { wxFlash = 1; wxNextFlash = ts + rnd(5000, 12000); }
+      if (wxFlash > 0.02) {
+        ctxFront.fillStyle = 'rgba(220,235,255,' + (wxFlash * 0.2).toFixed(3) + ')';
+        ctxFront.fillRect(0, 0, vw, vh);
+        wxFlash *= 0.82;
+      }
+    }
+
+    wxRaf = requestAnimationFrame(wxTick);
+  }
+
+  function wxStart() {
+    if (reduce || wxRunning || !wxBack || !wxFront) return;
+    ctxBack = wxBack.getContext('2d');
+    ctxFront = wxFront.getContext('2d');
+    if (!ctxBack || !ctxFront) return;
+    wxSize();
+    wxRunning = true;
+    wxLast = 0;
+    wxBack.classList.add('on');
+    wxFront.classList.add('on');
+    wxRaf = requestAnimationFrame(wxTick);
+  }
+
+  function wxStop() {
+    wxRunning = false;
+    if (wxRaf) cancelAnimationFrame(wxRaf);
+    wxRaf = 0;
+  }
+
+  function wxRebuild() {
+    var cfg = wxConfig();
+    wxSize();
+    wxParts = [];
+    wxSplash = [];
+    for (var i = 0; i < cfg.count; i++) wxParts.push(wxPart(cfg));
+  }
+
+  function wxChipText() {
+    return 'WX ' + WX.label + (WX.temp == null ? '' : ' ' + WX.temp + '°C');
+  }
+
+  function applyWeather(code, temp, isDay, failed) {
+    var row = WX_TABLE[code];
+    if (row) {
+      WX.mode = row[0];
+      WX.label = row[1];
+      WX.icon = row[2];
+      WX.temp = temp;
+      WX.isDay = isDay ? 1 : 0;
+      WX.code = code;
+    } else {
+      WX.mode = 'clear';
+      WX.label = failed ? '天气未知' : '晴';
+      WX.icon = failed ? '··' : '☀';
+      WX.temp = failed ? null : temp;
+      WX.code = null;
+      WX.isDay = 1;
+    }
+
+    if (wxChip) {
+      wxChip.textContent = wxChipText();
+      wxChip.title = failed
+        ? '没有取到天气数据（网络受限或接口不可达），粒子退化为默认微尘'
+        : WX.place + ' · ' + WX.label + (WX.temp == null ? '' : ' · ' + WX.temp + '°C') + ' · 数据来自 open-meteo.com';
+    }
+
+    /* 阴雨雪雾天把星空压暗，晴夜保持原有的星星 */
+    var murky = ['overcast', 'fog', 'drizzle', 'rain', 'heavy', 'snow', 'storm'].indexOf(WX.mode) >= 0;
+    if (bg) bg.classList.toggle('wx-dim', murky);
+
+    if (reduce) return;   /* 用户要求减弱动效：只更新文字，不绘制粒子 */
+    wxRebuild();
+    wxStart();
+  }
+
+  function wxLoad() {
+    var url = 'https://api.open-meteo.com/v1/forecast?latitude=' + WX.lat +
+      '&longitude=' + WX.lon +
+      '&current=weather_code,temperature_2m,is_day,precipitation,wind_speed_10m&timezone=auto';
+    var ctrl = window.AbortController ? new AbortController() : null;
+    var timer = setTimeout(function () { if (ctrl) ctrl.abort(); }, 9000);
+
+    fetch(url, ctrl ? { signal: ctrl.signal, cache: 'no-store' } : { cache: 'no-store' })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        clearTimeout(timer);
+        var cur = d && d.current;
+        if (!cur || cur.weather_code == null) throw new Error('payload');
+        applyWeather(cur.weather_code, Math.round(cur.temperature_2m), cur.is_day ? 1 : 0, false);
+        try {
+          sessionStorage.setItem(WX.cacheKey, JSON.stringify({
+            code: cur.weather_code,
+            temp: Math.round(cur.temperature_2m),
+            day: cur.is_day ? 1 : 0,
+            ts: Date.now()
+          }));
+        } catch (e) {}
+      })
+      .catch(function () {
+        clearTimeout(timer);
+        applyWeather(null, null, 1, true);
+      });
+  }
+
+  function wxLocate() {
+    if (!navigator.geolocation || !navigator.permissions || !navigator.permissions.query) { wxLoad(); return; }
+    var q;
+    try { q = navigator.permissions.query({ name: 'geolocation' }); } catch (e) { wxLoad(); return; }
+    if (!q || typeof q.then !== 'function') { wxLoad(); return; }
+    q.then(function (status) {
+      if (status.state !== 'granted') { wxLoad(); return; }
+      navigator.geolocation.getCurrentPosition(function (pos) {
+        WX.lat = Number(pos.coords.latitude.toFixed(3));
+        WX.lon = Number(pos.coords.longitude.toFixed(3));
+        WX.place = '当前位置';
+        wxLoad();
+      }, function () { wxLoad(); }, { timeout: 6000, maximumAge: 600000 });
+    }).catch(function () { wxLoad(); });
+  }
+
+  function wxInit() {
+    var cached = null;
+    try { cached = JSON.parse(sessionStorage.getItem(WX.cacheKey) || 'null'); } catch (e) {}
+    if (cached && cached.code != null) {
+      applyWeather(cached.code, cached.temp, cached.day, false);
+      if (Date.now() - cached.ts < WX.ttl) return;
+    } else {
+      applyWeather(0, null, 1, false);   /* 先给晴天微尘，避免空窗 */
+    }
+    wxLocate();
+  }
+
+  window.addEventListener('resize', function () {
+    if (reduce) return;
+    wxSize();
+  });
+
+  document.addEventListener('visibilitychange', function () {
+    if (reduce) return;
+    if (document.hidden) wxStop(); else wxStart();
+  });
+
+  wxInit();
 
   /* ---------- NPC 对话 ---------- */
   var QUOTES = [
