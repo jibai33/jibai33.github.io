@@ -16,20 +16,21 @@
 | 联系我 | GitHub、Email、知乎 |
 | 作品仓库 | 3 个作品卡片，各带「CLEAR」进度条：像素官网生成器、地牢漫步、8-BIT 品牌手册 |
 | 成就墙 | 6 枚成就徽章：FIRST COMMIT、PIXEL MASTER、SHIP IT、50K DL、NIGHT OWL、COIN HOARDER |
-| 日记本 | 500 字上限、4 种心情标签、按日期区间筛选、每条可展开评论区、导出独立 HTML 存档、JSON 导入导出、与仓库 `diary.json` 自动合并、`SYNC ▲` 一键直传仓库 |
+| 日记本 | 500 字上限、4 种心情标签、按日期区间筛选、每条可展开评论区、**云端同步（写入即上传，多设备共用）**、导出独立 HTML 存档、JSON 导入导出、`SYNC ▲` 一键直传仓库做备份 |
 | 天气粒子 | 按访问当天的实时天气掉落像素：晴＝彩色微尘、阴＝灰雾、雨＝蓝色雨丝（触底溅起）、雪＝白色雪块、雷雨＝雨＋随机闪电；HUD 显示「WX 小雨 13°C」 |
 
 ## 技术说明
 
-- **单文件实现**：全部结构与逻辑在 `index.html`（3498 行），无构建步骤、无框架，样式与脚本全部内联
+- **单文件实现**：全部结构与逻辑在 `index.html`（3748 行），无构建步骤、无框架，样式与脚本全部内联；云同步接口页 `diary-api.html`（184 行，内嵌 SDK）单独部署在云域名
 - **数据驱动**：内容由内联 JS 的数据数组渲染——`LOGS`（经历）、`SKILLS`（技能）、`SOCIALS`（联系方式）、`PROJECTS`（作品）、`ACHV`（成就）。改文案只需改对应数组，不必动 DOM
 - **像素图形**：图标是代码里的点阵字符串（`ICONS`），由 `pixelGrid()` 绘制
 - **头像**：`assets/avatar.png`（源图 `assets/头像.png` 居中裁方后缩到 160×160），CSS 用 `image-rendering: pixelated` 最近邻放大保留颗粒感；图片缺失时自动退回点阵 `Z` 图标
 - **字体自托管**：Fusion Pixel（中文正文，78 个 unicode-range 分片）、Press Start 2P（标题）、VT323，均为 SIL OFL-1.1，许可与原文见 LICENSES.md
-- **外部请求**：MUSIC 播放调用网易云音乐外链、评论区从云服务域名加载 `comments.html`、天气数据请求 `api.open-meteo.com`；字体、SDK 与样式全部本地自托管，不依赖任何 CDN
+- **外部请求**：MUSIC 播放调用网易云音乐外链、评论区从云服务域名加载 `comments.html`、日记云同步走同域名 `diary-api.html`、天气数据请求 `api.open-meteo.com`；字体、SDK 与样式全部本地自托管，不依赖任何 CDN
 - **天气粒子**：`WX` / `WX_FX` 两张表驱动，Canvas 双层（背景层 + 卡片之上的前景层）绘制像素粒子，天气取不到时退化为晴天微尘
-- **日记数据**：正文存浏览器 `localStorage`，仓库根 `diary.json` 是跨设备的共享快照；页面打开时自动拉取合并，导出 HTML 存档（内嵌 `diary-data` JSON，可再次导入）时文件名形如 `diary-archive-20261030.html`
+- **日记数据**：正文写进浏览器 `localStorage` 的同时**自动同步到云数据库 `diary_entries`**（匿名写入，写入即全网可见）；仓库根 `diary.json` 退化为只读备份。导出 HTML 存档（内嵌 `diary-data` JSON，可再次导入）时文件名形如 `diary-archive-20261030.html`
 - **评论**：WorkBuddy 云数据库（PostgreSQL + RLS）+ 自建 iframe 小组件。评论 UI 部署在云服务域名 `https://jibai33-home.app.workbuddy.host/comments.html`，页面用 iframe 内嵌并按 `postMessage` 自适应高度；访客无需登录，填昵称即可留言
+- **日记云同步**：与评论同一朵云、同一套桥接方案——云域名上的 `diary-api.html` 提供 `list / insert / delete` 三个操作，主页面用一个隐藏 iframe + `postMessage` 调用（云接口按 Origin 精确匹配，github.io 不能直连）。RLS 允许匿名读/写/删，但 `INSERT` 带 `WITH CHECK`：id 格式、时间戳范围、心情枚举、正文 ≤500 字都在数据库侧把关
 - **部署**：GitHub Pages，`main` 分支根目录直接发布，无需 Actions
 
 ## 天气粒子
@@ -98,20 +99,18 @@ var CLOUD_CMT = {
 ## 日记同步
 
 ```
-本地/线上浏览器 localStorage  ──PUBLISH──▶ 下载 diary.json ──git commit/push──▶ 仓库根 diary.json
-        ▲                          │                                                   │
-        │                          └──SYNC（配 token）──GET sha → 合并 → PUT───────────┘
-        └──────────────── 打开页面时 fetch + 合并（去重 by ts|text，跳过墓碑） ◀──────────┘
+浏览器 localStorage ──保存/删除时自动────▶ 云数据库 diary_entries ◀──自动拉取合并── 其他设备/访客
+        ▲  ▲                                        │
+        │  └────────── SYNC ▲ / PUBLISH（备份）──────┘（不相干，两条路独立）
+        │
+仓库根 diary.json ──打开页面时 fetch 合并（备份通道，云不可用时兜底）
 ```
 
-- **直传**：填入 GitHub fine-grained token（仅本仓库 `Contents: Read and write`）后点 `SYNC ▲`，页面走 Contents API——`GET` 取当前 `sha` 与内容 → 与本地按 `ts|text` 合并 → `PUT` 整文件写回，GitHub 自动生成一次提交，Pages 约 1 分钟更新。token 只存本机 `localStorage`（`linyi_diary_token`），随时可在 GitHub 撤销
-- **CORS**：`api.github.com` 对 `PUT` 预检返回 `access-control-allow-methods: GET, POST, PATCH, PUT, DELETE` 与 `allow-origin: *`，页面可直连
-
-- **拉取**：页面加载后 `fetch diary.json`（带时间戳绕 CDN 缓存，线上取同源相对路径，本地打开取 `https://jibai33.github.io/diary.json`，GitHub Pages 返回 `access-control-allow-origin: *`），按 `ts|text` 去重合并进 `localStorage`，提示 `SYNC +N`
-- **推送**：日记区 `PUBLISH` 按钮把当前全部日记下载为 `diary.json`，放到仓库根提交推送后，任何设备打开页面都能拉到
-- **删除**：删除某条日记会写入本机墓碑（`linyi_diary_v1_tomb`），避免仓库里的旧快照把它合并复活
-- **公开性**：`diary.json` 随站点发布，任何访问 <https://jibai33.github.io/diary.json> 的人都能读取全部日记——这是零 token 方案的代价，私密内容请勿只依赖此存档
-- **没上线的日记会自己认罪**：页面拉到 `diary.json` 后会把仓库里已有的条目记下来（key 仍是 `ts|text`），本机写了但仓库里没有的日记，卡片日期旁打一枚 `只在本机` 黄框角标，底栏出现会呼吸的 `未同步 N ▲` 按钮（点一下直接走 `SYNC ▲` 的直传流程）；展开它的评论面板还会提醒「换设备/别人看不到它」。判断只在 `diary.json` 拉取成功时生效，断网打开不会满屏误报
+- **主通道（云）**：写日记 → 本地保存 + 自动 `insert` 上云；删除 → 本地墓碑 + 云端 `delete`；打开页面 → `list` 拉全量，按 `ts|text` 去重合并进本地，再把本地有而云上没有的条目逐条补传。全程经隐藏 iframe 调 `diary-api.html`，桥不通时静默降级，一切照旧走 localStorage + diary.json
+- **「只在本机」角标 / 未同步 N ▲**：以云为准判断——云库里没有的条目打角标，底栏按钮显示数量，点一下立即补传；云不可用时退回按仓库 `diary.json` 判断，断网不误报
+- **备份通道（GitHub）**：`PUBLISH` 下载 `diary.json` 提交到仓库、`SYNC ▲` 配 token 直传，仓库快照只进不出；云库挂了还能靠它恢复
+- **删除**：写入本机墓碑（`linyi_diary_v1_tomb`），云删除失败也不会被下次同步复活
+- **公开性**：云库匿名可写，RLS 限制了字段格式但挡不住恶意内容（与评论同一信任级别）；`diary.json` 随站点发布，任何访问 <https://jibai33.github.io/diary.json> 的人都能读取——私密内容别放日记
 
 ## 本地预览
 
@@ -132,9 +131,10 @@ python3 -m http.server 8000
 - 评论不做本地缓存，离线打开时评论区空白；发言有 20 秒冷却，防止误触重复提交
 - MUSIC 播放依赖网易云音乐的外链接口，歌曲可能因版权或接口调整而失效
 - 音效受浏览器自动播放策略限制，需首次交互后才解锁
-- 日记正文只存在当前浏览器的 `localStorage`（清除站点数据即丢失），仓库 `diary.json` 是手动 PUBLISH 或 SYNC 提交的共享快照；重要内容请用 EXPORT 另存一份
-- 同步是「仓库 → 浏览器」的自动合并 + 「浏览器 → 仓库」的手动触发（PUSH 下载或 SYNC 直传）；浏览器里新写的日记在触发之前不会出现在其他设备上
-- **评论跟着日记走**：评论以 `diary_id` 挂在具体日记下，日记没上线时其他设备连卡片都没有，评论自然无处显示（数据仍在云库里，日记上线后立刻出现）。所以「手机上写了日记 + 评论了，电脑上看不到」不是评论丢了，而是那条日记还只在本机——见上面的 `未同步 N ▲`
+- 日记正文存在浏览器 `localStorage` **并自动同步云库**（清除站点数据不丢，云库还在）；仓库 `diary.json` 降级为手动备份；重要内容仍建议用 EXPORT 另存一份
+- **云同步是匿名通道**：与评论同一信任级别——任何访客技术上都能向 `diary_entries` 写/删（RLS 只校验字段格式）；日记若被恶意删改，可从 `diary.json` 备份或 EXPORT 存档恢复
+- 云同步经隐藏 iframe 调 `diary-api.html`，**该文件改动后必须重新发布到云服务域名**（与 comments.html 同理）；只推 GitHub Pages 不会更新同步通道
+- 同步失败时页面静默降级：云不可用就退回 localStorage + diary.json 的老流程，`只在本机` 角标按仓库快照判断；恢复后打开页面会自动补传差异
 - `SYNC ▲` 依赖本机 `localStorage` 里的 GitHub token：清除站点数据会一并清掉 token，需要重新填入；token 失效或权限不足时页面会提示 401/403
 
 ## 许可

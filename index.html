@@ -1523,7 +1523,7 @@
           <button class="mini-btn" id="diaryPublish" type="button" title="下载 diary.json，放进仓库根提交后线上即可读到">PUBLISH</button>
           <button class="mini-btn" id="diarySync" type="button" title="直接写入 GitHub 仓库（需先配置 token）">SYNC ▲</button>
           <button class="mini-btn warn" id="diaryPending" type="button" hidden
-            title="这些日记只存在这台设备上：别的设备、别人打开页面都看不到它们，评论也就没有入口。点这里上传到仓库。">未同步 0</button>
+            title="这些日记还没同步到云端：别的设备、别人打开页面都看不到它们，评论也就没有入口。点这里立即上传。">未同步 0</button>
           <input type="file" id="diaryFile" accept=".html,.htm,.json,text/html,application/json" hidden />
           <span class="diary-hint">⌘/CTRL+ENTER 保存 · 打开时自动合并仓库 diary.json</span>
         </div>
@@ -2685,6 +2685,57 @@
     page: 'comments.html',
     share: 'KWLMX3RRCK'                               /* 站点访问码，重新发布后如有变化需同步更新 */
   };
+
+  /* ---------- 日记云同步（隐藏 iframe 桥 → 云数据库 diary_entries） ----------
+     云接口只放行它自己的域名（github.io 发起的请求预检直接 403），主页没法直连，
+     所以照搬评论的套路：云域名上放一个 diary-api.html，这里用隐藏 iframe + postMessage
+     做 list / insert / delete。云不可用时全部静默降级回 localStorage + diary.json。 */
+  var DIARY_BRIDGE = {
+    base: CLOUD_CMT.base,
+    page: 'diary-api.html',
+    share: CLOUD_CMT.share,
+    frame: null, ready: false,
+    seq: 0, pending: {}, queue: []
+  };
+  /* 云库里已有的条目（key = ts|text）。null = 还没拉到（或云不可用），
+     此时「未同步」判定退回 REMOTE_KEYS（仓库 diary.json）。 */
+  var CLOUD_KEYS = null;
+
+  function bridgeFrame() {
+    if (DIARY_BRIDGE.frame) return DIARY_BRIDGE.frame;
+    var f = document.createElement('iframe');
+    f.src = DIARY_BRIDGE.base + '/' + DIARY_BRIDGE.page +
+      (DIARY_BRIDGE.share ? '?sharecode=' + encodeURIComponent(DIARY_BRIDGE.share) : '');
+    f.title = 'diary-sync';
+    f.setAttribute('aria-hidden', 'true');
+    f.style.cssText = 'position:absolute;width:1px;height:1px;opacity:0;border:0;pointer-events:none;';
+    document.body.appendChild(f);
+    DIARY_BRIDGE.frame = f;
+    return f;
+  }
+
+  function bridgeRequest(op, payload, timeoutMs) {
+    return new Promise(function (resolve, reject) {
+      if (!DIARY_BRIDGE.base) { reject(new Error('云日记未配置')); return; }
+      var id = 'r' + (++DIARY_BRIDGE.seq) + '-' + Date.now().toString(36);
+      var timer = setTimeout(function () {
+        if (DIARY_BRIDGE.pending[id]) {
+          delete DIARY_BRIDGE.pending[id];
+          reject(new Error('云日记超时'));
+        }
+      }, timeoutMs || 15000);
+      DIARY_BRIDGE.pending[id] = { resolve: resolve, reject: reject, timer: timer };
+      function send() {
+        var win = bridgeFrame().contentWindow;
+        if (win) win.postMessage({ type: 'pixel-diary-rpc', id: id, op: op, payload: payload }, '*');
+      }
+      if (DIARY_BRIDGE.ready) send();
+      else {
+        DIARY_BRIDGE.queue.push(send);
+        bridgeFrame(); /* 先把 iframe 挂上，diary-api.html 才有机会发 ready 过来 */
+      }
+    });
+  }
   var MOODS = [
     { id: 'happy', label: '开心', icon: 'mood_happy', color: C.yellow },
     { id: 'calm', label: '平静', icon: 'mood_calm', color: C.blue },
@@ -2710,8 +2761,11 @@
   }
   /* 删除墓碑：记录被删条目的 key，避免线上存档把已删日记重新合并回来 */
   function diaryKey(it) { return it.ts + '|' + it.text; }
-  /* 这条日记是否已经上了仓库（上线后其他设备 / 访客都能看到） */
-  function isPublished(it) { return !!REMOTE_KEYS && !!REMOTE_KEYS[diaryKey(it)]; }
+  /* 这条日记是否已经上了云（云不可用时退回「是否已在仓库 diary.json」） */
+  function isPublished(it) {
+    var keys = CLOUD_KEYS || REMOTE_KEYS;
+    return !!keys && !!keys[diaryKey(it)];
+  }
   function pendingCount() {
     if (!REMOTE_KEYS) return 0;
     return loadDiary().filter(function (it) { return !isPublished(it); }).length;
@@ -2836,6 +2890,108 @@
     }
   });
 
+  /* 日记云桥：就绪信号 + RPC 回包 */
+  window.addEventListener('message', function (e) {
+    var d = e.data || {};
+    if (d.type === 'pixel-diary-ready') {
+      DIARY_BRIDGE.ready = true;
+      var q = DIARY_BRIDGE.queue;
+      DIARY_BRIDGE.queue = [];
+      q.forEach(function (fn) { try { fn(); } catch (err) { /* 忽略单个失败 */ } });
+      return;
+    }
+    if (d.type !== 'pixel-diary-rpc-res') return;
+    var rec = DIARY_BRIDGE.pending[d.id];
+    if (!rec) return;
+    delete DIARY_BRIDGE.pending[d.id];
+    clearTimeout(rec.timer);
+    if (d.ok) rec.resolve(d.data);
+    else rec.reject(new Error(d.error || '云日记操作失败'));
+  });
+
+  /* ---------- 云日记：拉取 / 推送 / 删除 ---------- */
+  function noteCloudRows(rows) {
+    CLOUD_KEYS = {};
+    (rows || []).forEach(function (it) {
+      if (it && typeof it.text === 'string' && typeof it.ts === 'number') {
+        CLOUD_KEYS[diaryKey(it)] = 1;
+      }
+    });
+  }
+
+  function pullCloudDiary() {
+    if (!DIARY_BRIDGE.base || !window.Promise) return;
+    bridgeRequest('list', null, 20000)
+      .then(function (rows) {
+        rows = (rows || []).filter(function (it) {
+          return it && typeof it.text === 'string' && typeof it.ts === 'number';
+        });
+        noteCloudRows(rows);
+        var merged = mergeRemoteEntries(loadDiary(), rows, loadTomb());
+        if (merged.added) {
+          persistDiary(merged.list);
+          showToast('CLOUD +' + merged.added);
+        }
+        renderDiary();
+        pushPendingToCloud(true);
+      })
+      .catch(function () { /* 云不可用：静默，继续用 localStorage + diary.json */ });
+  }
+
+  var pushingCloud = false;
+  function pushPendingToCloud(silent) {
+    if (!DIARY_BRIDGE.base || pushingCloud || !CLOUD_KEYS || !window.Promise) return;
+    var list = loadDiary().filter(function (it) { return !CLOUD_KEYS[diaryKey(it)]; });
+    if (!list.length) { renderDiary(); return; }
+    pushingCloud = true;
+    var ok = 0, fail = 0;
+    function step(i) {
+      if (i >= list.length) {
+        pushingCloud = false;
+        if (fail) showToast('云端同步失败 ' + fail + ' 条 · 稍后自动重试');
+        else if (ok && !silent) showToast('云端同步 ×' + ok);
+        if (ok) renderDiary();
+        return;
+      }
+      var it = list[i];
+      bridgeRequest('insert', { id: it.id, ts: it.ts, mood: it.mood, text: it.text }, 20000)
+        .then(function () {
+          CLOUD_KEYS[diaryKey(it)] = 1;
+          ok++;
+        })
+        .catch(function () { fail++; })
+        .then(function () { step(i + 1); });
+    }
+    step(0);
+  }
+
+  function pushOneToCloud(item) {
+    if (!DIARY_BRIDGE.base || !window.Promise) return;
+    bridgeRequest('insert', { id: item.id, ts: item.ts, mood: item.mood, text: item.text }, 20000)
+      .then(function () {
+        if (CLOUD_KEYS) {
+          CLOUD_KEYS[diaryKey(item)] = 1;
+          renderDiary();
+        }
+      })
+      .catch(function () {
+        showToast('云端没存上 ▸ 稍后自动重试');
+        setTimeout(function () { pushPendingToCloud(true); }, 30000);
+      });
+  }
+
+  function deleteCloudDiary(item) {
+    if (!DIARY_BRIDGE.base || !window.Promise || !item.id) return;
+    bridgeRequest('delete', { id: item.id }, 20000)
+      .then(function () {
+        if (CLOUD_KEYS) delete CLOUD_KEYS[diaryKey(item)];
+      })
+      .catch(function () {
+        /* 本地墓碑已挡住复活，只是云库里可能残留一行 */
+        showToast('云端删除失败 ▸ 本地已删');
+      });
+  }
+
   function mountComments(host, item) {
     host.innerHTML = '';
     var url = CLOUD_CMT.base + '/' + CLOUD_CMT.page +
@@ -2903,12 +3059,12 @@
 
     panel.appendChild(head);
 
-    /* 没上线的日记，评论地址只有本机知道：别人（或你换台设备）连卡片都看不到 */
+    /* 没同步到云的日记，评论地址只有本机知道：别人（或你换台设备）连卡片都看不到 */
     if (!isPublished(item)) {
       var warn = document.createElement('p');
       warn.className = 'cmt-tip cmt-warn';
-      warn.textContent = '这条日记还没同步到仓库（只在本机），所以换设备 / 别人打开页面都看不到它，' +
-        '评论也就没有入口。先点底栏 SYNC ▲ 上传，再分享。';
+      warn.textContent = '这条日记还没同步到云端（只在本机），所以换设备 / 别人打开页面都看不到它，' +
+        '评论也就没有入口。正常会自动上传，也可以点底栏「未同步」立即上传。';
       panel.appendChild(warn);
     }
 
@@ -2980,6 +3136,7 @@
         var rest = loadDiary().filter(function (it) { return diaryKey(it) !== k; });
         persistDiary(rest);
         renderDiary();
+        deleteCloudDiary(item);
         beep(220, 0.12);
         showToast('DELETED');
       });
@@ -2990,8 +3147,8 @@
         var badge = document.createElement('span');
         badge.className = 'diary-badge';
         badge.textContent = '只在本机';
-        badge.title = '这条还没写进仓库 diary.json：换设备或别人打开页面都看不到它，' +
-          '点底栏的 SYNC ▲ 上传后才会全网可见。';
+        badge.title = '这条还没同步到云端：换设备或别人打开页面暂时看不到它。' +
+          '正常会自动上传，一直不消失的话点底栏「未同步」重试。';
         head.appendChild(badge);
       }
       head.appendChild(del);
@@ -3090,6 +3247,7 @@
     beep(880, 0.08);
     beep(1174, 0.1, 0.09);
     showToast('SAVED! +1 COIN');
+    pushOneToCloud(list[0]);
   });
 
   /* 展开 / 收起 */
@@ -3477,10 +3635,14 @@
   syncBtn.addEventListener('click', syncToGitHub);
   if (pendingBtn) {
     pendingBtn.addEventListener('click', function () {
+      if (!CLOUD_KEYS) {
+        showToast('云端没连上 ▸ 稍后再试');
+        return;
+      }
       var n = pendingCount();
       if (!n) { renderDiary(); return; }
       showToast('上传本机的 ' + n + ' 条日记…');
-      syncToGitHub();
+      pushPendingToCloud(false);
     });
   }
   document.getElementById('diaryTokenSave').addEventListener('click', function () {
@@ -3557,6 +3719,7 @@
   importFromHash();
   showLocalNotice();
   syncFromRemote();
+  pullCloudDiary();
 
   /* ---------- 开机加载 ---------- */
   var loader = document.getElementById('loader');
