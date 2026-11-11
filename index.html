@@ -1173,11 +1173,29 @@
     margin-top: 18px;
   }
   .proj {
+    position: relative;
     padding: 12px;
     background: var(--panel-2);
     border: 3px solid var(--white);
     box-shadow: 3px 3px 0 #000;
     animation: fadeUp 0.5s steps(4, end) both;
+  }
+  /* 最新作品：红色描边 + 右上角 NEW 贴纸 */
+  .proj.fresh { border-color: var(--red); }
+  .proj.fresh:hover { border-color: var(--yellow); }
+  .proj-new {
+    position: absolute;
+    top: -9px;
+    right: 8px;
+    padding: 3px 5px;
+    font-family: var(--px);
+    font-size: 7px;
+    letter-spacing: 0.5px;
+    color: #fff;
+    background: var(--red);
+    border: 2px solid #000;
+    box-shadow: 2px 2px 0 #000;
+    pointer-events: none;
   }
   .proj:hover {
     transform: translate(-1px, -3px);
@@ -2389,6 +2407,19 @@
   /* ---------- 作品仓库 ---------- */
   var PROJECTS = [
     {
+      icon: 'play',
+      color: C.blue,
+      name: '闻曲 Earworm',
+      tag: 'MUSIC / PWA',
+      desc: '一个账号接通网易云、QQ 音乐、汽水音乐与小宇宙，国风沉浸式音乐播放器，Web 版与 macOS 桌面端双端齐发。',
+      clear: 10,
+      fresh: 'NEW',
+      href: 'https://jibai33.github.io/earworm/',
+      hrefLabel: 'LIVE DEMO · earworm',
+      srcLabel: '</> GITHUB',
+      extra: { href: 'https://github.com/jibai33/earworm' }
+    },
+    {
       icon: 'monitor',
       color: C.yellow,
       name: '像素官网生成器',
@@ -2429,7 +2460,7 @@
   var projHost = document.getElementById('projects');
   PROJECTS.forEach(function (p, i) {
     var card = document.createElement(p.href ? 'a' : 'div');
-    card.className = 'proj' + (p.href ? ' proj-link' : '');
+    card.className = 'proj' + (p.href ? ' proj-link' : '') + (p.fresh ? ' fresh' : '');
     if (p.href) {
       card.href = p.href;
       card.target = '_blank';
@@ -2490,6 +2521,13 @@
 
     card.appendChild(label);
     card.appendChild(prog);
+
+    if (p.fresh) {
+      var nb = document.createElement('span');
+      nb.className = 'proj-new';
+      nb.textContent = p.fresh;
+      card.appendChild(nb);
+    }
     projHost.appendChild(card);
   });
 
